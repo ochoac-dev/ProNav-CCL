@@ -325,9 +325,21 @@ describe("contained app generator", () => {
     const script = renderAppScript();
 
     expect(html).toContain('id="run-codex-button"');
+    expect(html).toContain('id="codex-confirmation"');
+    expect(html).toContain('id="start-codex-button"');
+    expect(html).toContain('id="cancel-codex-button"');
+    expect(html).toContain('id="codex-review-panel"');
     expect(html).toContain("Run in Codex");
+    expect(html).toContain("Start Codex");
+    expect(html).toContain("Review after Codex");
+    expect(renderAppStyles()).toContain("[hidden] { display: none !important; }");
     expect(script).toContain("/api/codex-run");
+    expect(script).toContain("showCodexConfirmation");
     expect(script).toContain("runCodexFromHandoff");
+    expect(script).toContain("renderCodexReview");
+    expect(script).toContain("changedFiles");
+    expect(script).toContain('getElementById("run-codex-button").addEventListener("click", showCodexConfirmation)');
+    expect(script).toContain('getElementById("start-codex-button").addEventListener("click", runCodexFromHandoff)');
   });
 
   it("renders the prototype-style command center shell with light and dark mode", () => {

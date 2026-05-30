@@ -320,9 +320,16 @@ describe("local app server", () => {
     const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-codex-repo-"));
     mkdirSync(join(repoRoot, "src"), { recursive: true });
     writeFileSync(join(repoRoot, "src", "index.ts"), "export const value = 1;\n");
+    execFileSync("git", ["init"], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["add", "."], { cwd: repoRoot, stdio: "ignore" });
+    execFileSync("git", ["-c", "user.name=ProNav Test", "-c", "user.email=pronav@example.test", "commit", "-m", "baseline"], {
+      cwd: repoRoot,
+      stdio: "ignore"
+    });
     const calls: Array<{ cwd: string; prompt: string }> = [];
     const codexRunner: CodexRunner = async ({ cwd, prompt }) => {
       calls.push({ cwd, prompt });
+      writeFileSync(join(cwd, "src", "index.ts"), "export const value = 2;\n");
       return {
         command: `codex exec -C ${cwd} --sandbox workspace-write -`,
         exitCode: 0,
@@ -365,6 +372,7 @@ describe("local app server", () => {
       stdout: string;
       outputPath: string;
       handoffPath: string;
+      changedFiles: string[];
     };
 
     expect(response.status).toBe(200);
@@ -374,6 +382,7 @@ describe("local app server", () => {
       handoffPath: handoff.path
     });
     expect(body.outputPath).toMatch(/^\/codex-runs\/codex-fixture\//);
+    expect(body.changedFiles).toContain("M src/index.ts");
     expect(existsSync(join(workspaceRoot, body.outputPath.replace(/^\//, "")))).toBe(true);
     expect(existsSync(join(repoRoot, "codex-runs"))).toBe(false);
     expect(calls[0]).toMatchObject({ cwd: repoRoot });
@@ -381,13 +390,14 @@ describe("local app server", () => {
 
     const memoryResponse = await fetch(`${server.url}/api/memory?project=codex-fixture`);
     const memory = (await memoryResponse.json()) as {
-      codexRuns: Array<{ handoffPath: string; outputPath: string; exitCode: number }>;
+      codexRuns: Array<{ handoffPath: string; outputPath: string; exitCode: number; changedFiles: string[] }>;
       summary: { codexRunCounts: { passed: number; failed: number; timedOut: number } };
     };
     expect(memory.codexRuns[0]).toMatchObject({
       handoffPath: handoff.path,
       outputPath: body.outputPath,
-      exitCode: 0
+      exitCode: 0,
+      changedFiles: ["M src/index.ts"]
     });
     expect(memory.summary.codexRunCounts).toEqual({ passed: 1, failed: 0, timedOut: 0 });
   });

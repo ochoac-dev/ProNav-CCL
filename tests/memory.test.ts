@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -75,7 +75,8 @@ describe("project memory store", () => {
       command: "codex exec -C /tmp/example --sandbox workspace-write -",
       exitCode: 0,
       durationMs: 5000,
-      timedOut: false
+      timedOut: false,
+      changedFiles: ["M src/index.ts"]
     });
     await addProjectNote(workspaceRoot, "memory-fixture", {
       text: "This repo uses src for screens.",
@@ -96,6 +97,34 @@ describe("project memory store", () => {
       timedOut: false
     });
     expect(memory.notes[0]).toMatchObject({ text: "This repo uses src for screens." });
+  });
+
+  it("normalizes older Codex run memory without changed-file lists", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-memory-legacy-codex-"));
+    const memoryDir = join(workspaceRoot, "memory", "memory-fixture");
+    await mkdir(memoryDir, { recursive: true });
+    await writeFile(
+      join(memoryDir, "project-memory.json"),
+      JSON.stringify({
+        project: { slug: "memory-fixture", name: "Memory Fixture", repoRoot: "/tmp/example" },
+        codexRuns: [
+          {
+            createdAt: "2026-05-29T20:02:30.000Z",
+            handoffPath: "/handoffs/memory-fixture/add-a-settings-screen.md",
+            outputPath: "/codex-runs/memory-fixture/add-a-settings-screen.txt",
+            command: "codex exec -C /tmp/example --sandbox workspace-write -",
+            exitCode: 0,
+            durationMs: 5000,
+            timedOut: false
+          }
+        ]
+      }),
+      "utf8"
+    );
+
+    const memory = await readProjectMemory(workspaceRoot, "memory-fixture");
+
+    expect(memory.codexRuns[0].changedFiles).toEqual([]);
   });
 
   it("summarizes scan changes and validation history without storing derived fields", async () => {
@@ -151,7 +180,8 @@ describe("project memory store", () => {
       command: "codex exec -C /tmp/example --sandbox workspace-write -",
       exitCode: 1,
       durationMs: 3000,
-      timedOut: false
+      timedOut: false,
+      changedFiles: ["M src/index.ts"]
     });
     await appendCodexRunMemory(workspaceRoot, "memory-fixture", {
       createdAt: "2026-05-29T21:05:00.000Z",
@@ -160,7 +190,8 @@ describe("project memory store", () => {
       command: "codex exec -C /tmp/example --sandbox workspace-write -",
       exitCode: 0,
       durationMs: 4000,
-      timedOut: false
+      timedOut: false,
+      changedFiles: []
     });
 
     const memory = await readProjectMemory(workspaceRoot, "memory-fixture");

@@ -360,14 +360,15 @@ async function runCodexFromRequest(
   workspaceRoot: string,
   body: Record<string, unknown>,
   codexRunner: CodexRunner
-): Promise<CodexRunResult & { handoffPath: string; outputPath: string }> {
+): Promise<CodexRunResult & { handoffPath: string; outputPath: string; changedFiles: string[] }> {
   const project = requireProjectSlug(body.project);
   const handoffPath = requireSavedHandoffPath(project, body.handoffPath);
   const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
   const handoffText = await readSavedHandoff(workspaceRoot, project, handoffPath);
   const startedAt = new Date();
   const result = await runCodexSafely(codexRunner, profile.repoRoot, handoffText);
-  const outputPath = await writeCodexRunOutput(workspaceRoot, project, handoffPath, startedAt, result);
+  const changedFiles = await collectChangedFiles(profile.repoRoot);
+  const outputPath = await writeCodexRunOutput(workspaceRoot, project, handoffPath, startedAt, result, changedFiles);
 
   await appendCodexRunMemory(workspaceRoot, project, {
     createdAt: startedAt.toISOString(),
@@ -376,13 +377,15 @@ async function runCodexFromRequest(
     command: result.command,
     exitCode: result.exitCode,
     durationMs: result.durationMs,
-    timedOut: result.timedOut
+    timedOut: result.timedOut,
+    changedFiles
   });
 
   return {
     ...result,
     handoffPath,
-    outputPath
+    outputPath,
+    changedFiles
   };
 }
 
@@ -423,7 +426,8 @@ async function writeCodexRunOutput(
   project: string,
   handoffPath: string,
   startedAt: Date,
-  result: CodexRunResult
+  result: CodexRunResult,
+  changedFiles: string[]
 ): Promise<string> {
   const slug = slugify(basename(handoffPath, ".md"));
   const timestamp = startedAt.toISOString().replace(/[:.]/g, "-");
@@ -438,6 +442,8 @@ async function writeCodexRunOutput(
       `Exit code: ${result.exitCode}`,
       `Timed out: ${result.timedOut ? "yes" : "no"}`,
       `Duration: ${Math.round(result.durationMs / 1000)}s`,
+      `Changed files: ${changedFiles.length}`,
+      ...changedFiles.map((file) => `- ${file}`),
       "",
       "stdout:",
       result.stdout || "(empty)",
@@ -449,6 +455,21 @@ async function writeCodexRunOutput(
   );
 
   return outputPath;
+}
+
+async function collectChangedFiles(repoRoot: string): Promise<string[]> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", repoRoot, "status", "--short"], {
+      maxBuffer: VALIDATION_OUTPUT_LIMIT
+    });
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 80);
+  } catch {
+    return [];
+  }
 }
 
 async function addNoteFromRequest(workspaceRoot: string, body: Record<string, unknown>) {

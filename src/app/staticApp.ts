@@ -180,7 +180,18 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "            </section>",
     '            <section class="panel">',
     '              <div class="card-header"><div><h3>Generated Handoff Packet</h3><p>Readable packet first. Raw prompt second.</p><p id="handoff-meta" class="muted">No handoff generated yet.</p></div><div class="button-row"><a id="handoff-link" class="link-button" href="#" hidden>Open packet</a><button id="run-codex-button" class="primary" type="button" hidden>Run in Codex</button><button id="copy-handoff-button" class="secondary" type="button" hidden>Copy prompt</button></div></div>',
+    '              <div id="codex-confirmation" class="codex-panel" hidden>',
+    '                <div><h4>Before Codex runs</h4><p>Codex may edit files in the selected repo. Review the target and handoff first.</p></div>',
+    '                <div id="codex-confirm-details" class="file-list packet"></div>',
+    '                <div class="button-row"><button id="cancel-codex-button" class="secondary" type="button">Cancel</button><button id="start-codex-button" class="primary" type="button">Start Codex</button></div>',
+    "              </div>",
     '              <pre id="handoff-output" class="document-content"></pre>',
+    '              <div id="codex-review-panel" class="codex-panel" hidden>',
+    '                <div><h4>Review after Codex</h4><p id="codex-review-summary" class="muted"></p></div>',
+    '                <div id="codex-changed-files" class="file-list packet"></div>',
+    '                <div id="codex-next-validation" class="file-list packet"></div>',
+    '                <div class="button-row"><button class="secondary" type="button" data-section-jump="validation">Open Validate</button><button class="secondary" type="button" data-section-jump="history">Open History</button></div>',
+    "              </div>",
     "            </section>",
     "          </div>",
     "        </section>",
@@ -290,6 +301,8 @@ export function renderAppStyles(): string {
 }
 
 * { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -573,7 +586,27 @@ button,
 
 #scan-button:disabled,
 #open-folder-button:disabled,
-#handoff-button:disabled { opacity: 0.65; cursor: wait; }
+#handoff-button:disabled,
+#run-codex-button:disabled,
+#start-codex-button:disabled { opacity: 0.65; cursor: wait; }
+
+.codex-panel {
+  margin: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  padding: 14px;
+}
+
+.codex-panel h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.codex-panel p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
 
 .error-box {
   margin-top: 12px;
@@ -1554,6 +1587,8 @@ async function submitHandoff(event) {
     const link = document.getElementById("handoff-link");
     link.href = body.path;
     link.hidden = false;
+    document.getElementById("codex-confirmation").hidden = true;
+    document.getElementById("codex-review-panel").hidden = true;
     document.getElementById("run-codex-button").hidden = agent !== "codex";
     document.getElementById("copy-handoff-button").hidden = false;
     loadProjectMemory();
@@ -1574,13 +1609,38 @@ async function copyHandoffPrompt() {
   }
 }
 
+function showCodexConfirmation() {
+  if (!lastHandoffPath || !appData?.project?.slug) return;
+  const firstValidation = appData.validationCommands?.[0] || "No validation command configured yet.";
+  document.getElementById("codex-review-panel").hidden = true;
+  document.getElementById("codex-confirm-details").innerHTML = [
+    fileRow("Repo: " + appData.project.repoRoot),
+    fileRow("Handoff: " + lastHandoffPath),
+    fileRow("Codex may edit files in this repo."),
+    fileRow("After it finishes, review changed files and run validation."),
+    fileRow("First validation: " + firstValidation)
+  ].join("");
+  document.getElementById("codex-confirmation").hidden = false;
+  document.getElementById("handoff-meta").textContent = "Review the Codex run details, then choose Start Codex.";
+}
+
+function hideCodexConfirmation() {
+  document.getElementById("codex-confirmation").hidden = true;
+  document.getElementById("handoff-meta").textContent = lastHandoffPath ? "Codex run canceled. Handoff is still ready." : "No handoff generated yet.";
+}
+
 async function runCodexFromHandoff() {
   if (!lastHandoffPath || !appData?.project?.slug) return;
   const button = document.getElementById("run-codex-button");
+  const startButton = document.getElementById("start-codex-button");
   const output = document.getElementById("handoff-output");
   const meta = document.getElementById("handoff-meta");
   button.disabled = true;
+  startButton.disabled = true;
   button.textContent = "Running";
+  startButton.textContent = "Running";
+  document.getElementById("codex-confirmation").hidden = true;
+  document.getElementById("codex-review-panel").hidden = true;
   meta.textContent = "Codex is working from the saved handoff.";
   output.textContent = "Starting Codex...\\n\\nThis can take a few minutes. ProNav will save the result in History.";
 
@@ -1598,24 +1658,48 @@ async function runCodexFromHandoff() {
     const status = body.exitCode === 0 ? "Codex finished" : "Codex stopped with an issue";
     meta.textContent = status + " | exit " + body.exitCode + " | " + Math.round((body.durationMs ?? 0) / 1000) + "s";
     output.textContent = formatCodexRunOutput(body);
+    renderCodexReview(body);
     loadProjectMemory();
   } catch (error) {
     meta.textContent = "Codex could not run.";
     output.textContent = error instanceof Error ? error.message : String(error);
   } finally {
     button.disabled = false;
+    startButton.disabled = false;
     button.textContent = "Run in Codex";
+    startButton.textContent = "Start Codex";
   }
 }
 
 function formatCodexRunOutput(result) {
+  const changedFiles = Array.isArray(result.changedFiles) ? result.changedFiles : [];
   return [
     "$ " + result.command,
     "Exit code: " + result.exitCode,
     "Transcript: " + result.outputPath,
+    "Changed files: " + changedFiles.length,
     result.stdout ? "stdout:\\n" + result.stdout : "stdout: (empty)",
     result.stderr ? "stderr:\\n" + result.stderr : "stderr: (empty)"
   ].join("\\n\\n");
+}
+
+function renderCodexReview(result) {
+  const changedFiles = Array.isArray(result.changedFiles) ? result.changedFiles : [];
+  const panel = document.getElementById("codex-review-panel");
+  document.getElementById("codex-review-summary").textContent =
+    result.exitCode === 0
+      ? "Codex finished. Review changed files before trusting the result."
+      : "Codex stopped with an issue. Review the transcript and changed files before continuing.";
+  document.getElementById("codex-changed-files").innerHTML = changedFiles.length
+    ? [fileRow("Changed files"), ...changedFiles.map(fileRow)].join("")
+    : fileRow("No changed files detected by git status.");
+  document.getElementById("codex-next-validation").innerHTML = appData.validationCommands?.length
+    ? [
+        fileRow("Next validation"),
+        ...appData.validationCommands.slice(0, 3).map((command) => fileRow(command))
+      ].join("")
+    : fileRow("No validation commands configured. Ask Codex what check proves the work.");
+  panel.hidden = false;
 }
 
 function renderSystemMap() {
@@ -1929,7 +2013,9 @@ function bindNavigation() {
   document.getElementById("feature-search").addEventListener("input", renderFeatureCards);
   document.getElementById("document-search").addEventListener("input", renderDocuments);
   document.getElementById("handoff-form").addEventListener("submit", submitHandoff);
-  document.getElementById("run-codex-button").addEventListener("click", runCodexFromHandoff);
+  document.getElementById("run-codex-button").addEventListener("click", showCodexConfirmation);
+  document.getElementById("start-codex-button").addEventListener("click", runCodexFromHandoff);
+  document.getElementById("cancel-codex-button").addEventListener("click", hideCodexConfirmation);
   document.getElementById("copy-handoff-button").addEventListener("click", copyHandoffPrompt);
   document.getElementById("memory-note-form").addEventListener("submit", submitMemoryNote);
   document.getElementById("refresh-memory-button").addEventListener("click", loadProjectMemory);

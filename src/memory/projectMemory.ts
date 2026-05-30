@@ -81,6 +81,7 @@ export interface CodexRunMemoryEntry {
   exitCode: number;
   durationMs: number;
   timedOut: boolean;
+  changedFiles: string[];
 }
 
 export interface ProjectNote {
@@ -230,7 +231,12 @@ function normalizeMemory(slug: string, value: Partial<ProjectMemory>): ProjectMe
     scans: Array.isArray(value.scans) ? value.scans.slice(0, MEMORY_LIMIT) : [],
     validations: Array.isArray(value.validations) ? value.validations.slice(0, MEMORY_LIMIT) : [],
     handoffs: Array.isArray(value.handoffs) ? value.handoffs.slice(0, MEMORY_LIMIT) : [],
-    codexRuns: Array.isArray(value.codexRuns) ? value.codexRuns.slice(0, MEMORY_LIMIT) : [],
+    codexRuns: Array.isArray(value.codexRuns)
+      ? value.codexRuns.slice(0, MEMORY_LIMIT).map((run) => ({
+          ...run,
+          changedFiles: Array.isArray(run.changedFiles) ? run.changedFiles : []
+        }))
+      : [],
     notes: Array.isArray(value.notes) ? value.notes.slice(0, MEMORY_LIMIT) : []
   };
 }
