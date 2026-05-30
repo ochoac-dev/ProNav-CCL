@@ -25,7 +25,7 @@ ProNav can also run as an Electron desktop app:
 npm run desktop
 ```
 
-The desktop app starts the same local ProNav server internally, opens a native app window, and uses the operating system folder picker for **Open Folder**.
+The desktop app starts the same local ProNav server internally, opens a native app window, uses the operating system folder picker for **Open Folder**, and includes ProNav app icons plus a native menu for common actions.
 
 In desktop mode, generated ProNav data is stored in the app data folder for your operating system instead of the installed app bundle.
 
@@ -35,7 +35,7 @@ To create an unpacked desktop build for local inspection:
 npm run desktop:package
 ```
 
-Local inspection builds are unsigned. Signed and notarized public releases will need platform-specific release setup later, such as Apple Developer signing for macOS.
+Local inspection builds are unsigned. Signed and notarized public releases will need platform-specific release setup later, such as Apple Developer signing for macOS. See [Desktop Release Plan](docs/desktop-release.md).
 
 ## What ProNav Is For
 
@@ -71,6 +71,8 @@ From the browser UI, a user can:
 - Read plain-English explanations of what each validation check catches.
 - Expand a validation output dropdown only when they want to inspect stdout and stderr.
 - Keep local project memory for scan history, validation results, handoffs, and user notes.
+- Compare recent scans so users can see what changed since the last scan.
+- Include saved notes, scan changes, and validation history in future AI handoff packets.
 
 The current scanner supports:
 
@@ -160,4 +162,4 @@ ProNav is built around a few rules:
 
 ProNav is early and actively evolving.
 
-The current version is best understood as a local project translator and AI handoff assistant. The next major step is turning the localhost app into a packaged desktop experience while continuing to improve project understanding, validation, and safe delegation workflows.
+The current version is best understood as a local project translator and AI handoff assistant with an early Electron desktop shell. The public-release track is signed installers, notarization, a repeatable release checklist, and deeper project understanding.

@@ -1,5 +1,6 @@
 import type { ScanResult } from "../types.js";
 import { slugify } from "../app/appData.js";
+import { summarizeProjectMemory, type ProjectMemory } from "../memory/projectMemory.js";
 
 export type HandoffAgent = "codex" | "claude" | "cursor" | "copy";
 
@@ -10,6 +11,7 @@ export interface HandoffRequest {
   taskType: HandoffTaskType;
   goal: string;
   scope?: string;
+  memory?: ProjectMemory;
 }
 
 export interface HandoffResult {
@@ -38,9 +40,10 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
     scope ? `Scope: ${scope}` : "Scope: use the bounded context below",
     "",
     "Read the handoff packet first, then inspect only the relevant files unless the task requires expanding scope.",
+    request.memory ? "Use the Project Memory section for recent notes, scan changes, and validation history." : "",
     "Do not edit protected paths or generated dependency/build folders.",
     "Run the listed validation checks before reporting completion."
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   return {
     slug,
@@ -56,7 +59,8 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
       goal,
       scope,
       relevantFiles,
-      prompt
+      prompt,
+      memory: request.memory
     })
   };
 }
@@ -70,6 +74,7 @@ function renderHandoffMarkdown(
     scope: string | null;
     relevantFiles: string[];
     prompt: string;
+    memory?: ProjectMemory;
   }
 ): string {
   return [
@@ -106,6 +111,7 @@ function renderHandoffMarkdown(
     "## Project Documents",
     "",
     ...bulletList(scan.documents.files.slice(0, 10).map((file) => file.path), "No documents detected."),
+    ...renderMemorySection(context.memory),
     "",
     "## Validation Checks",
     "",
@@ -177,4 +183,73 @@ function taskTypeLabel(taskType: HandoffTaskType): string {
 
 function bulletList(values: string[], emptyText: string): string[] {
   return values.length === 0 ? [`- ${emptyText}`] : values.map((value) => `- \`${value}\``);
+}
+
+function renderMemorySection(memory: ProjectMemory | undefined): string[] {
+  if (!memory) return [];
+
+  const hasMemory =
+    memory.scans.length > 0 || memory.validations.length > 0 || memory.handoffs.length > 0 || memory.notes.length > 0;
+  if (!hasMemory) return [];
+
+  const summary = summarizeProjectMemory(memory);
+  return [
+    "",
+    "## Project Memory",
+    "",
+    ...renderScanMemory(summary),
+    `- Validation history: ${summary.validationCounts.passed} passed, ${summary.validationCounts.failed} failed, ${summary.validationCounts.timedOut} timed out`,
+    "",
+    "### Recent Notes",
+    "",
+    ...plainBulletList(
+      memory.notes.slice(0, 5).map((note) => `${formatMemoryDate(note.createdAt)}: ${note.text}`),
+      "No notes saved yet."
+    ),
+    "",
+    "### Recent Validation Runs",
+    "",
+    ...plainBulletList(memory.validations.slice(0, 5).map(renderValidationMemory), "No validation runs recorded yet."),
+    "",
+    "### Recent Handoffs",
+    "",
+    ...plainBulletList(memory.handoffs.slice(0, 5).map(renderHandoffMemory), "No prior handoffs recorded yet.")
+  ];
+}
+
+function renderScanMemory(summary: ReturnType<typeof summarizeProjectMemory>): string[] {
+  if (!summary.latestScan) {
+    return ["- No scan history recorded yet."];
+  }
+
+  if (!summary.previousScan || !summary.scanChange) {
+    return [`- Latest scan: ${summary.latestScan.files} files, ${summary.latestScan.documents} docs, ${summary.latestScan.dirtyEntries} git status entries`];
+  }
+
+  return [
+    `- Files changed since last scan: ${formatSigned(summary.scanChange.files)}`,
+    `- Documents changed since last scan: ${formatSigned(summary.scanChange.documents)}`,
+    `- Git status entries changed since last scan: ${formatSigned(summary.scanChange.dirtyEntries)}`
+  ];
+}
+
+function renderValidationMemory(validation: ProjectMemory["validations"][number]): string {
+  const status = validation.timedOut ? "timed out" : validation.exitCode === 0 ? "passed" : "failed";
+  return `${formatMemoryDate(validation.createdAt)}: ${validation.command} | ${status} | exit ${validation.exitCode} | ${Math.round(validation.durationMs / 1000)}s`;
+}
+
+function renderHandoffMemory(handoff: ProjectMemory["handoffs"][number]): string {
+  return `${formatMemoryDate(handoff.createdAt)}: ${handoff.agent} ${handoff.taskType} | ${handoff.goal}`;
+}
+
+function plainBulletList(values: string[], emptyText: string): string[] {
+  return values.length === 0 ? [`- ${emptyText}`] : values.map((value) => `- ${value}`);
+}
+
+function formatSigned(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function formatMemoryDate(value: string): string {
+  return value.slice(0, 10) || "Unknown date";
 }

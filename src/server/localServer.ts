@@ -11,7 +11,8 @@ import {
   appendHandoffMemory,
   appendScanMemory,
   appendValidationMemory,
-  readProjectMemory
+  readProjectMemory,
+  withProjectMemorySummary
 } from "../memory/projectMemory.js";
 import { loadProfile } from "../profile.js";
 import { createGeneratedProfile, slugify } from "../project/profileGenerator.js";
@@ -105,7 +106,7 @@ async function handleRequest(
         return;
       }
 
-      sendJson(response, 200, await readProjectMemory(workspaceRoot, project));
+      sendJson(response, 200, withProjectMemorySummary(await readProjectMemory(workspaceRoot, project)));
       return;
     }
 
@@ -237,11 +238,13 @@ async function createHandoffFromRequest(
   const scope = typeof body.scope === "string" ? body.scope : undefined;
   const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
   const scan = await collectScan(profile);
+  const memory = await readProjectMemory(workspaceRoot, project);
   const handoff = buildHandoff(scan, {
     agent,
     taskType,
     goal,
-    scope
+    scope,
+    memory
   });
   const handoffPath = join(workspaceRoot, "handoffs", project, `${handoff.slug}.md`);
 
@@ -345,10 +348,10 @@ async function addNoteFromRequest(workspaceRoot: string, body: Record<string, un
     throw new Error("Note text is required.");
   }
 
-  return addProjectNote(workspaceRoot, project, {
+  return withProjectMemorySummary(await addProjectNote(workspaceRoot, project, {
     text,
     createdAt: new Date().toISOString()
-  });
+  }));
 }
 
 function parseCommandIndex(value: unknown): number {

@@ -113,4 +113,70 @@ describe("handoff builder", () => {
     expect(handoff.prompt).toContain("Use Cursor");
     expect(handoff.markdown).toContain("Agent: Cursor");
   });
+
+  it("includes recent project memory so agents understand scan changes and notes", async () => {
+    const scan = makeScan(await mkdtemp(join(tmpdir(), "pronav-handoff-memory-")));
+
+    const handoff = buildHandoff(scan, {
+      agent: "codex",
+      taskType: "refactor",
+      goal: "Clean up the settings flow.",
+      scope: "src",
+      memory: {
+        project: {
+          slug: "friendly-app",
+          name: "Friendly App",
+          repoRoot: scan.profile.repoRoot
+        },
+        scans: [
+          {
+            generatedAt: "2026-05-29T22:00:00.000Z",
+            projectType: "node",
+            detectedCapabilities: ["generic", "git", "node"],
+            files: 12,
+            documents: 3,
+            dirtyEntries: 1
+          },
+          {
+            generatedAt: "2026-05-29T21:00:00.000Z",
+            projectType: "node",
+            detectedCapabilities: ["generic", "git", "node"],
+            files: 10,
+            documents: 2,
+            dirtyEntries: 0
+          }
+        ],
+        validations: [
+          {
+            createdAt: "2026-05-29T22:03:00.000Z",
+            command: "npm run build",
+            exitCode: 1,
+            durationMs: 940,
+            timedOut: false
+          },
+          {
+            createdAt: "2026-05-29T22:02:00.000Z",
+            command: "npm test",
+            exitCode: 0,
+            durationMs: 120,
+            timedOut: false
+          }
+        ],
+        handoffs: [],
+        notes: [
+          {
+            createdAt: "2026-05-29T22:04:00.000Z",
+            text: "The user wants beginner-friendly names for settings."
+          }
+        ]
+      }
+    });
+
+    expect(handoff.prompt).toContain("Use the Project Memory section");
+    expect(handoff.markdown).toContain("## Project Memory");
+    expect(handoff.markdown).toContain("Files changed since last scan: +2");
+    expect(handoff.markdown).toContain("Validation history: 1 passed, 1 failed, 0 timed out");
+    expect(handoff.markdown).toContain("npm run build");
+    expect(handoff.markdown).toContain("The user wants beginner-friendly names for settings.");
+  });
 });

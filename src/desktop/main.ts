@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, shell, type MenuItemConstructorOptions } from "electron";
 import { startLocalServer, type LocalServerHandle } from "../server/localServer.js";
+import { createDesktopMenuTemplate } from "./menu.js";
 import { createDesktopServerOptions } from "./serverOptions.js";
 
 let mainWindow: BrowserWindow | null = null;
@@ -7,6 +8,7 @@ let localServer: LocalServerHandle | null = null;
 let quitAfterServerClose = false;
 
 async function startDesktopApp(): Promise<void> {
+  configureDesktopIdentity();
   localServer = await startLocalServer(
     createDesktopServerOptions({
       appPaths: app,
@@ -17,7 +19,34 @@ async function startDesktopApp(): Promise<void> {
   );
 
   mainWindow = createMainWindow(localServer.url);
+  installDesktopMenu();
   await mainWindow.loadURL(localServer.url);
+}
+
+function configureDesktopIdentity(): void {
+  app.setName("ProNav");
+  if (process.platform === "darwin") {
+    app.setAboutPanelOptions({
+      applicationName: "ProNav",
+      applicationVersion: app.getVersion(),
+      copyright: "Copyright © 2026 Carlos Ochoa"
+    });
+  }
+}
+
+function installDesktopMenu(): void {
+  const template = createDesktopMenuTemplate({
+    openProjectFolder: () => {
+      if (!mainWindow) return;
+      mainWindow.focus();
+      void mainWindow.webContents.executeJavaScript('document.getElementById("open-folder-button")?.click();');
+    },
+    openGitHub: () => {
+      void shell.openExternal("https://github.com/ochoac-dev/ProNav-CCL");
+    }
+  });
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template as MenuItemConstructorOptions[]));
 }
 
 function createMainWindow(localUrl: string): BrowserWindow {

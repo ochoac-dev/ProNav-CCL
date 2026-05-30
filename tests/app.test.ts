@@ -311,6 +311,10 @@ describe("contained app generator", () => {
     expect(script).toContain("renderBrowseProject");
     expect(script).toContain("loadProjectMemory");
     expect(script).toContain("submitMemoryNote");
+    expect(script).toContain("renderMemorySummary");
+    expect(script).toContain("formatScanChange");
+    expect(script).toContain("Validation history");
+    expect(html).toContain('id="memory-summary"');
     expect(script).toContain("prefillDelegateFromBrowse");
     expect(script).toContain("/api/memory");
     expect(script).toContain("/api/notes");

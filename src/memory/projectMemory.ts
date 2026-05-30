@@ -15,6 +15,25 @@ export interface ProjectMemory {
   notes: ProjectNote[];
 }
 
+export interface ProjectMemorySummary {
+  latestScan: ScanMemoryEntry | null;
+  previousScan: ScanMemoryEntry | null;
+  scanChange: {
+    files: number;
+    documents: number;
+    dirtyEntries: number;
+  } | null;
+  validationCounts: {
+    passed: number;
+    failed: number;
+    timedOut: number;
+  };
+}
+
+export type ProjectMemoryResponse = ProjectMemory & {
+  summary: ProjectMemorySummary;
+};
+
 export interface ScanMemoryEntry {
   generatedAt: string;
   projectType: string;
@@ -115,6 +134,47 @@ export async function addProjectNote(workspaceRoot: string, projectSlug: string,
   memory.notes = limitNewest([{ createdAt: input.createdAt, text }, ...memory.notes]);
   await writeProjectMemory(workspaceRoot, memory);
   return memory;
+}
+
+export function summarizeProjectMemory(memory: ProjectMemory): ProjectMemorySummary {
+  const scans = [...memory.scans].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
+  const latestScan = scans[0] ?? null;
+  const previousScan = scans[1] ?? null;
+  const validationCounts = memory.validations.reduce(
+    (counts, validation) => {
+      if (validation.timedOut) {
+        counts.timedOut += 1;
+      } else if (validation.exitCode === 0) {
+        counts.passed += 1;
+      } else {
+        counts.failed += 1;
+      }
+
+      return counts;
+    },
+    { passed: 0, failed: 0, timedOut: 0 }
+  );
+
+  return {
+    latestScan,
+    previousScan,
+    scanChange:
+      latestScan && previousScan
+        ? {
+            files: latestScan.files - previousScan.files,
+            documents: latestScan.documents - previousScan.documents,
+            dirtyEntries: latestScan.dirtyEntries - previousScan.dirtyEntries
+          }
+        : null,
+    validationCounts
+  };
+}
+
+export function withProjectMemorySummary(memory: ProjectMemory): ProjectMemoryResponse {
+  return {
+    ...memory,
+    summary: summarizeProjectMemory(memory)
+  };
 }
 
 function normalizeMemory(slug: string, value: Partial<ProjectMemory>): ProjectMemory {

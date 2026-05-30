@@ -220,7 +220,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "            </div>",
     "          </div>",
     '          <div class="content-grid two-column">',
-    '            <section class="panel"><div class="card-header"><div><h3>Project Memory</h3><p>Scans, validations, handoffs, and notes remembered locally by ProNav.</p></div><button class="secondary" type="button" id="refresh-memory-button">Refresh</button></div><div id="memory-timeline" class="file-list packet"></div></section>',
+    '            <section class="panel"><div class="card-header"><div><h3>Project Memory</h3><p>Scans, validations, handoffs, and notes remembered locally by ProNav.</p></div><button class="secondary" type="button" id="refresh-memory-button">Refresh</button></div><div id="memory-summary" class="file-list packet"></div><div id="memory-timeline" class="file-list packet"></div></section>',
     '            <section class="panel"><div class="card-header"><div><h3>Remember this about the project</h3><p>Add a local note to make future handoffs more grounded.</p></div></div><form id="memory-note-form" class="handoff-form"><textarea id="memory-note-text" rows="5" placeholder="Example: The settings screen lives in src/app/settings."></textarea><button id="memory-note-button" class="primary" type="submit">Save Note</button></form><div id="memory-note-error" class="error-box" role="alert" hidden></div></section>',
     "          </div>",
     '          <section class="panel"><div class="card-header"><div><h3>Generated Outputs</h3><p>Open reports from the latest scan, then create follow-up handoffs from Delegate.</p></div><button class="secondary" type="button" data-section-jump="connect">Scan another repo</button></div><div id="history-report-links" class="button-row packet"></div></section>',
@@ -1705,6 +1705,7 @@ function renderProjectMemory() {
   const timeline = document.getElementById("memory-timeline");
   if (!timeline) return;
   const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], notes: [] };
+  renderMemorySummary(memory);
   const entries = [
     ...(memory.notes ?? []).map((note) => ({
       label: "Note",
@@ -1731,6 +1732,72 @@ function renderProjectMemory() {
   timeline.innerHTML = entries.length
     ? entries.slice(0, 30).map((entry) => fileRow(entry.label + " · " + formatDateTime(entry.when) + " · " + entry.text)).join("")
     : fileRow("No memory yet. Scan, validate, generate a handoff, or add a note.");
+}
+
+function renderMemorySummary(memory) {
+  const summaryBox = document.getElementById("memory-summary");
+  if (!summaryBox) return;
+
+  const summary = memory.summary ?? buildMemorySummary(memory);
+  const validationCounts = summary.validationCounts ?? { passed: 0, failed: 0, timedOut: 0 };
+  summaryBox.innerHTML = [
+    fileRow("What changed since last scan: " + formatScanChange(summary.scanChange)),
+    fileRow(
+      "Validation history: " +
+        validationCounts.passed +
+        " passed, " +
+        validationCounts.failed +
+        " failed, " +
+        validationCounts.timedOut +
+        " timed out"
+    )
+  ].join("");
+}
+
+function buildMemorySummary(memory) {
+  const scans = [...(memory.scans ?? [])].sort((a, b) => text(b.generatedAt).localeCompare(text(a.generatedAt)));
+  const latestScan = scans[0] ?? null;
+  const previousScan = scans[1] ?? null;
+  const validationCounts = (memory.validations ?? []).reduce(
+    (counts, validation) => {
+      if (validation.timedOut) counts.timedOut += 1;
+      else if (validation.exitCode === 0) counts.passed += 1;
+      else counts.failed += 1;
+      return counts;
+    },
+    { passed: 0, failed: 0, timedOut: 0 }
+  );
+
+  return {
+    latestScan,
+    previousScan,
+    scanChange:
+      latestScan && previousScan
+        ? {
+            files: latestScan.files - previousScan.files,
+            documents: latestScan.documents - previousScan.documents,
+            dirtyEntries: latestScan.dirtyEntries - previousScan.dirtyEntries
+          }
+        : null,
+    validationCounts
+  };
+}
+
+function formatScanChange(change) {
+  if (!change) return "Run at least two scans to compare changes.";
+  return (
+    signedCount(change.files) +
+    " files, " +
+    signedCount(change.documents) +
+    " docs, " +
+    signedCount(change.dirtyEntries) +
+    " git status entries"
+  );
+}
+
+function signedCount(value) {
+  const numberValue = Number(value ?? 0);
+  return numberValue > 0 ? "+" + numberValue : String(numberValue);
 }
 
 async function submitMemoryNote(event) {

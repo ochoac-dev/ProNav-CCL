@@ -55,12 +55,14 @@ describe("local app server", () => {
     const memoryResponse = await fetch(`${server.url}/api/memory?project=server-fixture`);
     const memory = (await memoryResponse.json()) as {
       scans: Array<{ projectType: string; files: number; documents: number }>;
+      summary: { latestScan: { projectType: string } | null };
     };
     expect(memoryResponse.status).toBe(200);
     expect(memory.scans[0]).toMatchObject({
       projectType: "node",
       documents: body.documents.totalDocuments
     });
+    expect(memory.summary.latestScan).toMatchObject({ projectType: "node" });
   });
 
   it("returns an actionable error for a missing repo path", async () => {
@@ -278,17 +280,35 @@ describe("local app server", () => {
     });
     expect(noteResponse.status).toBe(200);
 
+    const memoryAwareHandoffResponse = await fetch(`${server.url}/api/handoff`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "memory-server-fixture",
+        agent: "codex",
+        taskType: "review",
+        goal: "Review the src folder with memory.",
+        scope: "src"
+      })
+    });
+    const memoryAwareHandoff = (await memoryAwareHandoffResponse.json()) as { markdown: string };
+    expect(memoryAwareHandoffResponse.status).toBe(200);
+    expect(memoryAwareHandoff.markdown).toContain("## Project Memory");
+    expect(memoryAwareHandoff.markdown).toContain("The user cares most about src.");
+
     const memoryResponse = await fetch(`${server.url}/api/memory?project=memory-server-fixture`);
     const memory = (await memoryResponse.json()) as {
       handoffs: Array<{ agent: string; taskType: string; goal: string; scope: string }>;
       notes: Array<{ text: string }>;
     };
-    expect(memory.handoffs[0]).toMatchObject({
+    expect(memory.handoffs).toContainEqual(
+      expect.objectContaining({
       agent: "claude",
       taskType: "explain-code",
       goal: "Explain the src folder.",
       scope: "src"
-    });
+      })
+    );
     expect(memory.notes[0]).toMatchObject({
       text: "The user cares most about src."
     });

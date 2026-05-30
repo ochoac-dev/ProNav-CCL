@@ -8,7 +8,9 @@ import {
   appendHandoffMemory,
   appendScanMemory,
   appendValidationMemory,
-  readProjectMemory
+  readProjectMemory,
+  summarizeProjectMemory,
+  withProjectMemorySummary
 } from "../src/memory/projectMemory.js";
 
 describe("project memory store", () => {
@@ -79,5 +81,69 @@ describe("project memory store", () => {
       scope: "src"
     });
     expect(memory.notes[0]).toMatchObject({ text: "This repo uses src for screens." });
+  });
+
+  it("summarizes scan changes and validation history without storing derived fields", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-memory-summary-"));
+
+    await appendScanMemory(workspaceRoot, {
+      slug: "memory-fixture",
+      name: "Memory Fixture",
+      repoRoot: "/tmp/example",
+      projectType: "node",
+      detectedCapabilities: ["generic", "node"],
+      generatedAt: "2026-05-29T20:00:00.000Z",
+      files: 8,
+      documents: 2,
+      dirtyEntries: 0
+    });
+    await appendScanMemory(workspaceRoot, {
+      slug: "memory-fixture",
+      name: "Memory Fixture",
+      repoRoot: "/tmp/example",
+      projectType: "node",
+      detectedCapabilities: ["generic", "node"],
+      generatedAt: "2026-05-29T21:00:00.000Z",
+      files: 11,
+      documents: 3,
+      dirtyEntries: 2
+    });
+    await appendValidationMemory(workspaceRoot, "memory-fixture", {
+      command: "npm test",
+      exitCode: 0,
+      durationMs: 120,
+      timedOut: false,
+      createdAt: "2026-05-29T21:01:00.000Z"
+    });
+    await appendValidationMemory(workspaceRoot, "memory-fixture", {
+      command: "npm run build",
+      exitCode: 1,
+      durationMs: 240,
+      timedOut: false,
+      createdAt: "2026-05-29T21:02:00.000Z"
+    });
+    await appendValidationMemory(workspaceRoot, "memory-fixture", {
+      command: "npm run slow",
+      exitCode: 124,
+      durationMs: 120_000,
+      timedOut: true,
+      createdAt: "2026-05-29T21:03:00.000Z"
+    });
+
+    const memory = await readProjectMemory(workspaceRoot, "memory-fixture");
+    const summary = summarizeProjectMemory(memory);
+
+    expect(summary.scanChange).toMatchObject({
+      files: 3,
+      documents: 1,
+      dirtyEntries: 2
+    });
+    expect(summary.validationCounts).toEqual({
+      passed: 1,
+      failed: 1,
+      timedOut: 1
+    });
+    expect(withProjectMemorySummary(memory).summary).toEqual(summary);
+    expect(memory).not.toHaveProperty("summary");
   });
 });
