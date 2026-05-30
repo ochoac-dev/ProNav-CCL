@@ -1,14 +1,44 @@
 {
   "name": "pronav-ccl",
   "version": "0.1.0",
+  "description": "Local-first project navigator and AI handoff assistant.",
+  "author": "Carlos Ochoa",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "main": "dist/desktop/main.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.desktop.json",
     "test": "vitest run",
     "app": "tsx src/cli.ts serve --port 4173",
+    "desktop": "npm run build && electron dist/desktop/main.js",
+    "desktop:package": "npm run build && electron-builder --dir",
+    "desktop:dist": "npm run build && electron-builder",
     "serve:app": "tsx src/cli.ts serve --port 4173",
     "pronav": "tsx src/cli.ts"
+  },
+  "build": {
+    "appId": "com.pronav.ccl",
+    "productName": "ProNav",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "README.md",
+      "LICENSE"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "commander": "^14.0.2",
@@ -17,6 +47,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "electron": "^42.3.0",
+    "electron-builder": "^26.8.1",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.14"

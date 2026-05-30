@@ -17,6 +17,26 @@ Then open `http://127.0.0.1:4173`, choose **Open Folder**, or type the local pat
 
 Generated profiles, reports, app data, and handoff packets are written inside the ProNav workspace under ignored local folders. ProNav should not create, edit, stage, or format files inside the repo being scanned.
 
+## Desktop App
+
+ProNav can also run as an Electron desktop app:
+
+```bash
+npm run desktop
+```
+
+The desktop app starts the same local ProNav server internally, opens a native app window, and uses the operating system folder picker for **Open Folder**.
+
+In desktop mode, generated ProNav data is stored in the app data folder for your operating system instead of the installed app bundle.
+
+To create an unpacked desktop build for local inspection:
+
+```bash
+npm run desktop:package
+```
+
+Local inspection builds are unsigned. Signed and notarized public releases will need platform-specific release setup later, such as Apple Developer signing for macOS.
+
 ## What ProNav Is For
 
 Most code projects become hard to understand once they grow beyond a few files. A non-coder or early builder might know what they want to create, but not know:
