@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { startLocalServer } from "../src/server/localServer.js";
+import { startLocalServer, type CodexRunner } from "../src/server/localServer.js";
 
 const servers: Awaited<ReturnType<typeof startLocalServer>>[] = [];
 
@@ -313,5 +313,120 @@ describe("local app server", () => {
       text: "The user cares most about src."
     });
     expect(existsSync(join(repoRoot, "memory"))).toBe(false);
+  });
+
+  it("runs a saved handoff through Codex and stores the result in project memory", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-codex-"));
+    const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-codex-repo-"));
+    mkdirSync(join(repoRoot, "src"), { recursive: true });
+    writeFileSync(join(repoRoot, "src", "index.ts"), "export const value = 1;\n");
+    const calls: Array<{ cwd: string; prompt: string }> = [];
+    const codexRunner: CodexRunner = async ({ cwd, prompt }) => {
+      calls.push({ cwd, prompt });
+      return {
+        command: `codex exec -C ${cwd} --sandbox workspace-write -`,
+        exitCode: 0,
+        stdout: "Codex finished the task.",
+        stderr: "",
+        durationMs: 25,
+        timedOut: false
+      };
+    };
+
+    const server = await startLocalServer({ port: 0, workspaceRoot, codexRunner });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/scan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repoPath: repoRoot, name: "Codex Fixture" })
+    });
+
+    const handoffResponse = await fetch(`${server.url}/api/handoff`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "codex-fixture",
+        agent: "codex",
+        taskType: "review",
+        goal: "Review the src folder.",
+        scope: "src"
+      })
+    });
+    const handoff = (await handoffResponse.json()) as { path: string };
+
+    const response = await fetch(`${server.url}/api/codex-run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: "codex-fixture", handoffPath: handoff.path })
+    });
+    const body = (await response.json()) as {
+      exitCode: number;
+      stdout: string;
+      outputPath: string;
+      handoffPath: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      exitCode: 0,
+      stdout: "Codex finished the task.",
+      handoffPath: handoff.path
+    });
+    expect(body.outputPath).toMatch(/^\/codex-runs\/codex-fixture\//);
+    expect(existsSync(join(workspaceRoot, body.outputPath.replace(/^\//, "")))).toBe(true);
+    expect(existsSync(join(repoRoot, "codex-runs"))).toBe(false);
+    expect(calls[0]).toMatchObject({ cwd: repoRoot });
+    expect(calls[0].prompt).toContain("Review the src folder.");
+
+    const memoryResponse = await fetch(`${server.url}/api/memory?project=codex-fixture`);
+    const memory = (await memoryResponse.json()) as {
+      codexRuns: Array<{ handoffPath: string; outputPath: string; exitCode: number }>;
+      summary: { codexRunCounts: { passed: number; failed: number; timedOut: number } };
+    };
+    expect(memory.codexRuns[0]).toMatchObject({
+      handoffPath: handoff.path,
+      outputPath: body.outputPath,
+      exitCode: 0
+    });
+    expect(memory.summary.codexRunCounts).toEqual({ passed: 1, failed: 0, timedOut: 0 });
+  });
+
+  it("rejects Codex run requests that do not reference a saved project handoff", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-codex-blocked-"));
+    const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-codex-blocked-repo-"));
+    writeFileSync(join(repoRoot, "README.md"), "# Blocked\n");
+    let ranCodex = false;
+    const codexRunner: CodexRunner = async () => {
+      ranCodex = true;
+      return {
+        command: "codex exec",
+        exitCode: 0,
+        stdout: "",
+        stderr: "",
+        durationMs: 1,
+        timedOut: false
+      };
+    };
+
+    const server = await startLocalServer({ port: 0, workspaceRoot, codexRunner });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/scan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repoPath: repoRoot, name: "Blocked Codex Fixture" })
+    });
+
+    const response = await fetch(`${server.url}/api/codex-run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: "blocked-codex-fixture", handoffPath: "/reports/blocked-codex-fixture/plain-overview.md" })
+    });
+    const body = (await response.json()) as { error: string };
+
+    expect(response.status).toBe(400);
+    expect(body.error).toMatch(/saved handoff/);
+    expect(ranCodex).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ export interface ProjectMemory {
   scans: ScanMemoryEntry[];
   validations: ValidationMemoryEntry[];
   handoffs: HandoffMemoryEntry[];
+  codexRuns: CodexRunMemoryEntry[];
   notes: ProjectNote[];
 }
 
@@ -24,6 +25,11 @@ export interface ProjectMemorySummary {
     dirtyEntries: number;
   } | null;
   validationCounts: {
+    passed: number;
+    failed: number;
+    timedOut: number;
+  };
+  codexRunCounts: {
     passed: number;
     failed: number;
     timedOut: number;
@@ -65,6 +71,16 @@ export interface HandoffMemoryEntry {
   scope: string | null;
   path: string;
   relevantFiles: string[];
+}
+
+export interface CodexRunMemoryEntry {
+  createdAt: string;
+  handoffPath: string;
+  outputPath: string;
+  command: string;
+  exitCode: number;
+  durationMs: number;
+  timedOut: boolean;
 }
 
 export interface ProjectNote {
@@ -126,6 +142,18 @@ export async function appendHandoffMemory(workspaceRoot: string, projectSlug: st
   return memory;
 }
 
+export async function appendCodexRunMemory(
+  workspaceRoot: string,
+  projectSlug: string,
+  input: CodexRunMemoryEntry
+): Promise<ProjectMemory> {
+  const slug = requireProjectSlug(projectSlug);
+  const memory = await readProjectMemory(workspaceRoot, slug);
+  memory.codexRuns = limitNewest([{ ...input }, ...memory.codexRuns]);
+  await writeProjectMemory(workspaceRoot, memory);
+  return memory;
+}
+
 export async function addProjectNote(workspaceRoot: string, projectSlug: string, input: ProjectNote): Promise<ProjectMemory> {
   const slug = requireProjectSlug(projectSlug);
   const text = input.text.trim();
@@ -154,6 +182,20 @@ export function summarizeProjectMemory(memory: ProjectMemory): ProjectMemorySumm
     },
     { passed: 0, failed: 0, timedOut: 0 }
   );
+  const codexRunCounts = (memory.codexRuns ?? []).reduce(
+    (counts, run) => {
+      if (run.timedOut) {
+        counts.timedOut += 1;
+      } else if (run.exitCode === 0) {
+        counts.passed += 1;
+      } else {
+        counts.failed += 1;
+      }
+
+      return counts;
+    },
+    { passed: 0, failed: 0, timedOut: 0 }
+  );
 
   return {
     latestScan,
@@ -166,7 +208,8 @@ export function summarizeProjectMemory(memory: ProjectMemory): ProjectMemorySumm
             dirtyEntries: latestScan.dirtyEntries - previousScan.dirtyEntries
           }
         : null,
-    validationCounts
+    validationCounts,
+    codexRunCounts
   };
 }
 
@@ -187,6 +230,7 @@ function normalizeMemory(slug: string, value: Partial<ProjectMemory>): ProjectMe
     scans: Array.isArray(value.scans) ? value.scans.slice(0, MEMORY_LIMIT) : [],
     validations: Array.isArray(value.validations) ? value.validations.slice(0, MEMORY_LIMIT) : [],
     handoffs: Array.isArray(value.handoffs) ? value.handoffs.slice(0, MEMORY_LIMIT) : [],
+    codexRuns: Array.isArray(value.codexRuns) ? value.codexRuns.slice(0, MEMORY_LIMIT) : [],
     notes: Array.isArray(value.notes) ? value.notes.slice(0, MEMORY_LIMIT) : []
   };
 }
@@ -197,6 +241,7 @@ function emptyMemory(slug: string): ProjectMemory {
     scans: [],
     validations: [],
     handoffs: [],
+    codexRuns: [],
     notes: []
   };
 }

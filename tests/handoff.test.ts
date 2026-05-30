@@ -163,6 +163,7 @@ describe("handoff builder", () => {
           }
         ],
         handoffs: [],
+        codexRuns: [],
         notes: [
           {
             createdAt: "2026-05-29T22:04:00.000Z",

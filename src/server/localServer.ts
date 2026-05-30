@@ -1,13 +1,15 @@
 import { exec, execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { extname, join, resolve } from "node:path";
+import { basename, extname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { renderAppHtml, renderAppScript, renderAppStyles } from "../app/staticApp.js";
+import { defaultCodexCommand, runCodexCli, type CodexRunner, type CodexRunResult } from "../codex/codexRunner.js";
 import { buildHandoff, type HandoffAgent, type HandoffTaskType } from "../handoffs/handoff.js";
 import {
   addProjectNote,
+  appendCodexRunMemory,
   appendHandoffMemory,
   appendScanMemory,
   appendValidationMemory,
@@ -24,7 +26,10 @@ export interface LocalServerOptions {
   port?: number;
   workspaceRoot?: string;
   pickFolder?: FolderPicker;
+  codexRunner?: CodexRunner;
 }
+
+export type { CodexRunner };
 
 export interface LocalServerHandle {
   server: Server;
@@ -42,8 +47,9 @@ const VALIDATION_OUTPUT_LIMIT = 80_000;
 export async function startLocalServer(options: LocalServerOptions = {}): Promise<LocalServerHandle> {
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd());
   const pickFolder = options.pickFolder ?? chooseLocalFolder;
+  const codexRunner = options.codexRunner ?? runCodexCli;
   const server = createServer((request, response) => {
-    void handleRequest(request, response, workspaceRoot, pickFolder);
+    void handleRequest(request, response, workspaceRoot, pickFolder, codexRunner);
   });
 
   await new Promise<void>((resolveListen, reject) => {
@@ -74,7 +80,8 @@ async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   workspaceRoot: string,
-  pickFolder: FolderPicker
+  pickFolder: FolderPicker,
+  codexRunner: CodexRunner
 ): Promise<void> {
   try {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -180,6 +187,11 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/codex-run") {
+      sendJson(response, 200, await runCodexFromRequest(workspaceRoot, await readJsonBody(request), codexRunner));
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/notes") {
       sendJson(response, 200, await addNoteFromRequest(workspaceRoot, await readJsonBody(request)));
       return;
@@ -187,7 +199,10 @@ async function handleRequest(
 
     if (
       request.method === "GET" &&
-      (url.pathname.startsWith("/reports/") || url.pathname.startsWith("/app/") || url.pathname.startsWith("/handoffs/"))
+      (url.pathname.startsWith("/reports/") ||
+        url.pathname.startsWith("/app/") ||
+        url.pathname.startsWith("/handoffs/") ||
+        url.pathname.startsWith("/codex-runs/"))
     ) {
       await serveWorkspaceFile(response, workspaceRoot, url.pathname);
       return;
@@ -341,6 +356,101 @@ async function runValidationFromRequest(
   }
 }
 
+async function runCodexFromRequest(
+  workspaceRoot: string,
+  body: Record<string, unknown>,
+  codexRunner: CodexRunner
+): Promise<CodexRunResult & { handoffPath: string; outputPath: string }> {
+  const project = requireProjectSlug(body.project);
+  const handoffPath = requireSavedHandoffPath(project, body.handoffPath);
+  const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
+  const handoffText = await readSavedHandoff(workspaceRoot, project, handoffPath);
+  const startedAt = new Date();
+  const result = await runCodexSafely(codexRunner, profile.repoRoot, handoffText);
+  const outputPath = await writeCodexRunOutput(workspaceRoot, project, handoffPath, startedAt, result);
+
+  await appendCodexRunMemory(workspaceRoot, project, {
+    createdAt: startedAt.toISOString(),
+    handoffPath,
+    outputPath,
+    command: result.command,
+    exitCode: result.exitCode,
+    durationMs: result.durationMs,
+    timedOut: result.timedOut
+  });
+
+  return {
+    ...result,
+    handoffPath,
+    outputPath
+  };
+}
+
+async function runCodexSafely(codexRunner: CodexRunner, cwd: string, prompt: string): Promise<CodexRunResult> {
+  try {
+    return await codexRunner({ cwd, prompt });
+  } catch (error) {
+    return {
+      command: defaultCodexCommand(cwd),
+      exitCode: 1,
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      durationMs: 0,
+      timedOut: false
+    };
+  }
+}
+
+async function readSavedHandoff(workspaceRoot: string, project: string, handoffPath: string): Promise<string> {
+  const target = resolve(workspaceRoot, `.${handoffPath}`);
+  const handoffRoot = resolve(workspaceRoot, "handoffs", project);
+  if (!target.startsWith(`${handoffRoot}${sep}`)) {
+    throw new Error("Codex can only run from a saved handoff packet.");
+  }
+
+  try {
+    return await readFile(target, "utf8");
+  } catch (error) {
+    if ((error as { code?: string }).code === "ENOENT") {
+      throw new Error("Codex can only run from a saved handoff packet.");
+    }
+    throw error;
+  }
+}
+
+async function writeCodexRunOutput(
+  workspaceRoot: string,
+  project: string,
+  handoffPath: string,
+  startedAt: Date,
+  result: CodexRunResult
+): Promise<string> {
+  const slug = slugify(basename(handoffPath, ".md"));
+  const timestamp = startedAt.toISOString().replace(/[:.]/g, "-");
+  const outputPath = `/codex-runs/${project}/${timestamp}-${slug}.txt`;
+  const target = join(workspaceRoot, outputPath);
+  await mkdir(join(workspaceRoot, "codex-runs", project), { recursive: true });
+  await writeFile(
+    target,
+    [
+      `Command: ${result.command}`,
+      `Handoff: ${handoffPath}`,
+      `Exit code: ${result.exitCode}`,
+      `Timed out: ${result.timedOut ? "yes" : "no"}`,
+      `Duration: ${Math.round(result.durationMs / 1000)}s`,
+      "",
+      "stdout:",
+      result.stdout || "(empty)",
+      "",
+      "stderr:",
+      result.stderr || "(empty)"
+    ].join("\n"),
+    "utf8"
+  );
+
+  return outputPath;
+}
+
 async function addNoteFromRequest(workspaceRoot: string, body: Record<string, unknown>) {
   const project = requireProjectSlug(body.project);
   const text = typeof body.text === "string" ? body.text.trim() : "";
@@ -352,6 +462,23 @@ async function addNoteFromRequest(workspaceRoot: string, body: Record<string, un
     text,
     createdAt: new Date().toISOString()
   }));
+}
+
+function requireSavedHandoffPath(project: string, value: unknown): string {
+  if (typeof value !== "string") {
+    throw new Error("Codex can only run from a saved handoff packet.");
+  }
+
+  const normalized = value.replaceAll("\\", "/");
+  if (
+    !normalized.startsWith(`/handoffs/${project}/`) ||
+    !normalized.endsWith(".md") ||
+    normalized.split("/").includes("..")
+  ) {
+    throw new Error("Codex can only run from a saved handoff packet.");
+  }
+
+  return normalized;
 }
 
 function parseCommandIndex(value: unknown): number {
@@ -531,5 +658,5 @@ function contentType(path: string): string {
 
 function isUserInputError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /Repo path|Profile|Configured|feature|document|handoff|note|Project slug|outside the scanned repo/i.test(message);
+  return /Repo path|Profile|Configured|feature|document|handoff|note|Project slug|saved handoff|outside the scanned repo/i.test(message);
 }

@@ -179,7 +179,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <div id="handoff-error" class="error-box" role="alert" hidden></div>',
     "            </section>",
     '            <section class="panel">',
-    '              <div class="card-header"><div><h3>Generated Handoff Packet</h3><p>Readable packet first. Raw prompt second.</p><p id="handoff-meta" class="muted">No handoff generated yet.</p></div><div class="button-row"><a id="handoff-link" class="link-button" href="#" hidden>Open packet</a><button id="copy-handoff-button" class="primary" type="button" hidden>Copy prompt</button></div></div>',
+    '              <div class="card-header"><div><h3>Generated Handoff Packet</h3><p>Readable packet first. Raw prompt second.</p><p id="handoff-meta" class="muted">No handoff generated yet.</p></div><div class="button-row"><a id="handoff-link" class="link-button" href="#" hidden>Open packet</a><button id="run-codex-button" class="primary" type="button" hidden>Run in Codex</button><button id="copy-handoff-button" class="secondary" type="button" hidden>Copy prompt</button></div></div>',
     '              <pre id="handoff-output" class="document-content"></pre>',
     "            </section>",
     "          </div>",
@@ -1140,6 +1140,7 @@ let appData = JSON.parse(rawData);
 let selectedFeatureId = appData?.features?.[0]?.id ?? null;
 let selectedDocumentPath = appData?.documents?.files?.[0]?.path ?? null;
 let lastHandoffPrompt = "";
+let lastHandoffPath = "";
 let projectMemory = null;
 const themeToggle = document.getElementById("theme-toggle");
 const openFolderButton = document.getElementById("open-folder-button");
@@ -1547,11 +1548,13 @@ async function submitHandoff(event) {
     const body = await response.json();
     if (!response.ok) throw new Error(body.error || "Handoff generation failed.");
     lastHandoffPrompt = body.prompt;
+    lastHandoffPath = body.path;
     document.getElementById("handoff-meta").textContent = "Packet: " + body.path + " | " + body.relevantFiles.length + " files";
     document.getElementById("handoff-output").textContent = body.prompt + "\\n\\n--- Packet Preview ---\\n" + body.markdown;
     const link = document.getElementById("handoff-link");
     link.href = body.path;
     link.hidden = false;
+    document.getElementById("run-codex-button").hidden = agent !== "codex";
     document.getElementById("copy-handoff-button").hidden = false;
     loadProjectMemory();
   } catch (error) {
@@ -1569,6 +1572,50 @@ async function copyHandoffPrompt() {
     await navigator.clipboard.writeText(lastHandoffPrompt);
     document.getElementById("handoff-meta").textContent = "Prompt copied.";
   }
+}
+
+async function runCodexFromHandoff() {
+  if (!lastHandoffPath || !appData?.project?.slug) return;
+  const button = document.getElementById("run-codex-button");
+  const output = document.getElementById("handoff-output");
+  const meta = document.getElementById("handoff-meta");
+  button.disabled = true;
+  button.textContent = "Running";
+  meta.textContent = "Codex is working from the saved handoff.";
+  output.textContent = "Starting Codex...\\n\\nThis can take a few minutes. ProNav will save the result in History.";
+
+  try {
+    const response = await fetch("/api/codex-run", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: appData.project.slug,
+        handoffPath: lastHandoffPath
+      })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Codex run failed to start.");
+    const status = body.exitCode === 0 ? "Codex finished" : "Codex stopped with an issue";
+    meta.textContent = status + " | exit " + body.exitCode + " | " + Math.round((body.durationMs ?? 0) / 1000) + "s";
+    output.textContent = formatCodexRunOutput(body);
+    loadProjectMemory();
+  } catch (error) {
+    meta.textContent = "Codex could not run.";
+    output.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Run in Codex";
+  }
+}
+
+function formatCodexRunOutput(result) {
+  return [
+    "$ " + result.command,
+    "Exit code: " + result.exitCode,
+    "Transcript: " + result.outputPath,
+    result.stdout ? "stdout:\\n" + result.stdout : "stdout: (empty)",
+    result.stderr ? "stderr:\\n" + result.stderr : "stderr: (empty)"
+  ].join("\\n\\n");
 }
 
 function renderSystemMap() {
@@ -1704,7 +1751,7 @@ async function loadProjectMemory() {
 function renderProjectMemory() {
   const timeline = document.getElementById("memory-timeline");
   if (!timeline) return;
-  const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], notes: [] };
+  const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], codexRuns: [], notes: [] };
   renderMemorySummary(memory);
   const entries = [
     ...(memory.notes ?? []).map((note) => ({
@@ -1721,6 +1768,11 @@ function renderProjectMemory() {
       label: "Handoff",
       when: handoff.createdAt,
       text: handoff.agent + " " + handoff.taskType + " | " + handoff.goal
+    })),
+    ...(memory.codexRuns ?? []).map((run) => ({
+      label: run.exitCode === 0 ? "Codex finished" : run.timedOut ? "Codex timed out" : "Codex needs review",
+      when: run.createdAt,
+      text: run.handoffPath + " | exit " + run.exitCode + " | " + Math.round((run.durationMs ?? 0) / 1000) + "s"
     })),
     ...(memory.scans ?? []).map((scan) => ({
       label: "Scan",
@@ -1740,6 +1792,7 @@ function renderMemorySummary(memory) {
 
   const summary = memory.summary ?? buildMemorySummary(memory);
   const validationCounts = summary.validationCounts ?? { passed: 0, failed: 0, timedOut: 0 };
+  const codexRunCounts = summary.codexRunCounts ?? { passed: 0, failed: 0, timedOut: 0 };
   summaryBox.innerHTML = [
     fileRow("What changed since last scan: " + formatScanChange(summary.scanChange)),
     fileRow(
@@ -1749,6 +1802,15 @@ function renderMemorySummary(memory) {
         validationCounts.failed +
         " failed, " +
         validationCounts.timedOut +
+        " timed out"
+    ),
+    fileRow(
+      "Codex runs: " +
+        codexRunCounts.passed +
+        " finished, " +
+        codexRunCounts.failed +
+        " need review, " +
+        codexRunCounts.timedOut +
         " timed out"
     )
   ].join("");
@@ -1767,6 +1829,15 @@ function buildMemorySummary(memory) {
     },
     { passed: 0, failed: 0, timedOut: 0 }
   );
+  const codexRunCounts = (memory.codexRuns ?? []).reduce(
+    (counts, run) => {
+      if (run.timedOut) counts.timedOut += 1;
+      else if (run.exitCode === 0) counts.passed += 1;
+      else counts.failed += 1;
+      return counts;
+    },
+    { passed: 0, failed: 0, timedOut: 0 }
+  );
 
   return {
     latestScan,
@@ -1779,7 +1850,8 @@ function buildMemorySummary(memory) {
             dirtyEntries: latestScan.dirtyEntries - previousScan.dirtyEntries
           }
         : null,
-    validationCounts
+    validationCounts,
+    codexRunCounts
   };
 }
 
@@ -1857,6 +1929,7 @@ function bindNavigation() {
   document.getElementById("feature-search").addEventListener("input", renderFeatureCards);
   document.getElementById("document-search").addEventListener("input", renderDocuments);
   document.getElementById("handoff-form").addEventListener("submit", submitHandoff);
+  document.getElementById("run-codex-button").addEventListener("click", runCodexFromHandoff);
   document.getElementById("copy-handoff-button").addEventListener("click", copyHandoffPrompt);
   document.getElementById("memory-note-form").addEventListener("submit", submitMemoryNote);
   document.getElementById("refresh-memory-button").addEventListener("click", loadProjectMemory);

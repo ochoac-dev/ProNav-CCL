@@ -320,6 +320,16 @@ describe("contained app generator", () => {
     expect(script).toContain("/api/notes");
   });
 
+  it("renders a streamlined Codex handoff action for vibe coders", () => {
+    const html = renderAppHtml("runners");
+    const script = renderAppScript();
+
+    expect(html).toContain('id="run-codex-button"');
+    expect(html).toContain("Run in Codex");
+    expect(script).toContain("/api/codex-run");
+    expect(script).toContain("runCodexFromHandoff");
+  });
+
   it("renders the prototype-style command center shell with light and dark mode", () => {
     const html = renderAppHtml("runners");
     const styles = renderAppStyles();

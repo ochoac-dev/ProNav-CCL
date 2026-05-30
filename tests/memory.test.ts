@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   addProjectNote,
   appendHandoffMemory,
+  appendCodexRunMemory,
   appendScanMemory,
   appendValidationMemory,
   readProjectMemory,
@@ -48,7 +49,7 @@ describe("project memory store", () => {
     expect(existsSync(join(targetRepo, "memory"))).toBe(false);
   });
 
-  it("records validation, handoff, and note events", async () => {
+  it("records validation, handoff, codex run, and note events", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-memory-events-"));
 
     await appendValidationMemory(workspaceRoot, "memory-fixture", {
@@ -67,6 +68,15 @@ describe("project memory store", () => {
       relevantFiles: ["src/index.ts"],
       createdAt: "2026-05-29T20:02:00.000Z"
     });
+    await appendCodexRunMemory(workspaceRoot, "memory-fixture", {
+      createdAt: "2026-05-29T20:02:30.000Z",
+      handoffPath: "/handoffs/memory-fixture/add-a-settings-screen.md",
+      outputPath: "/codex-runs/memory-fixture/2026-05-29T20-02-30-000Z-add-a-settings-screen.txt",
+      command: "codex exec -C /tmp/example --sandbox workspace-write -",
+      exitCode: 0,
+      durationMs: 5000,
+      timedOut: false
+    });
     await addProjectNote(workspaceRoot, "memory-fixture", {
       text: "This repo uses src for screens.",
       createdAt: "2026-05-29T20:03:00.000Z"
@@ -79,6 +89,11 @@ describe("project memory store", () => {
       agent: "codex",
       taskType: "build-feature",
       scope: "src"
+    });
+    expect(memory.codexRuns[0]).toMatchObject({
+      handoffPath: "/handoffs/memory-fixture/add-a-settings-screen.md",
+      exitCode: 0,
+      timedOut: false
     });
     expect(memory.notes[0]).toMatchObject({ text: "This repo uses src for screens." });
   });
@@ -129,6 +144,24 @@ describe("project memory store", () => {
       timedOut: true,
       createdAt: "2026-05-29T21:03:00.000Z"
     });
+    await appendCodexRunMemory(workspaceRoot, "memory-fixture", {
+      createdAt: "2026-05-29T21:04:00.000Z",
+      handoffPath: "/handoffs/memory-fixture/review-src.md",
+      outputPath: "/codex-runs/memory-fixture/2026-05-29T21-04-00-000Z-review-src.txt",
+      command: "codex exec -C /tmp/example --sandbox workspace-write -",
+      exitCode: 1,
+      durationMs: 3000,
+      timedOut: false
+    });
+    await appendCodexRunMemory(workspaceRoot, "memory-fixture", {
+      createdAt: "2026-05-29T21:05:00.000Z",
+      handoffPath: "/handoffs/memory-fixture/fix-src.md",
+      outputPath: "/codex-runs/memory-fixture/2026-05-29T21-05-00-000Z-fix-src.txt",
+      command: "codex exec -C /tmp/example --sandbox workspace-write -",
+      exitCode: 0,
+      durationMs: 4000,
+      timedOut: false
+    });
 
     const memory = await readProjectMemory(workspaceRoot, "memory-fixture");
     const summary = summarizeProjectMemory(memory);
@@ -142,6 +175,11 @@ describe("project memory store", () => {
       passed: 1,
       failed: 1,
       timedOut: 1
+    });
+    expect(summary.codexRunCounts).toEqual({
+      passed: 1,
+      failed: 1,
+      timedOut: 0
     });
     expect(withProjectMemorySummary(memory).summary).toEqual(summary);
     expect(memory).not.toHaveProperty("summary");

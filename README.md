@@ -67,6 +67,7 @@ From the browser UI, a user can:
 - Browse important project documents and preview readable files.
 - Generate Markdown reports inside the ProNav workspace.
 - Create bounded handoff packets for Codex, Claude Code, Cursor, or copy-paste prompts.
+- Run saved Codex handoff packets from the local app and keep the run transcript in ProNav history.
 - Run configured validation checks from inside the app.
 - Read plain-English explanations of what each validation check catches.
 - Expand a validation output dropdown only when they want to inspect stdout and stderr.
