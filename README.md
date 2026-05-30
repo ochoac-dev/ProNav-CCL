@@ -62,6 +62,7 @@ From the browser UI, a user can:
 - Scan the project without writing into that project.
 - See a beginner-friendly summary of what the project appears to be.
 - See likely edit areas such as screens, backend, database, docs, tests, and validation.
+- Browse folder cards that explain what each area is for, how safe it is to edit, and what to ask an AI coding tool next.
 - See detected project capabilities such as Git, Node, Unity, Supabase, WordPress, or generic code.
 - Browse important project documents and preview readable files.
 - Generate Markdown reports inside the ProNav workspace.
@@ -69,6 +70,7 @@ From the browser UI, a user can:
 - Run configured validation checks from inside the app.
 - Read plain-English explanations of what each validation check catches.
 - Expand a validation output dropdown only when they want to inspect stdout and stderr.
+- Keep local project memory for scan history, validation results, handoffs, and user notes.
 
 The current scanner supports:
 

@@ -299,6 +299,23 @@ describe("contained app generator", () => {
     expect(script).toContain("data-vibe-task-index");
   });
 
+  it("renders Browse Project and Memory wiring", () => {
+    const html = renderAppHtml("runners");
+    const script = renderAppScript();
+
+    expect(html).toContain("Browse Project");
+    expect(html).toContain('id="browse-folder-cards"');
+    expect(html).toContain('id="memory-timeline"');
+    expect(html).toContain('id="memory-note-form"');
+    expect(html).toContain("Remember this about the project");
+    expect(script).toContain("renderBrowseProject");
+    expect(script).toContain("loadProjectMemory");
+    expect(script).toContain("submitMemoryNote");
+    expect(script).toContain("prefillDelegateFromBrowse");
+    expect(script).toContain("/api/memory");
+    expect(script).toContain("/api/notes");
+  });
+
   it("renders the prototype-style command center shell with light and dark mode", () => {
     const html = renderAppHtml("runners");
     const styles = renderAppStyles();

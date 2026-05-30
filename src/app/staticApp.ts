@@ -25,7 +25,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '      <nav class="section-nav" aria-label="Sections">',
     '        <button class="nav-button active" type="button" data-section="connect"><span class="nav-icon">+</span><span class="label">Connect Repo</span></button>',
     '        <button class="nav-button" type="button" data-section="overview"><span class="nav-icon">◎</span><span class="label">Understand</span></button>',
-    '        <button class="nav-button" type="button" data-section="features"><span class="nav-icon">⌕</span><span class="label">Explore</span></button>',
+    '        <button class="nav-button" type="button" data-section="features"><span class="nav-icon">⌕</span><span class="label">Browse</span></button>',
     '        <button class="nav-button" type="button" data-section="delegate"><span class="nav-icon">↗</span><span class="label">Delegate</span></button>',
     '        <button class="nav-button" type="button" data-section="validation"><span class="nav-icon">✓</span><span class="label">Validate</span></button>',
     '        <button class="nav-button" type="button" data-section="history"><span class="nav-icon">◷</span><span class="label">History</span></button>',
@@ -75,7 +75,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <p class="eyebrow">What this project is</p>',
     '              <div id="vibe-project-story" class="vibe-story"></div>',
     '              <div id="vibe-quick-summary" class="friendly-summary secondary-summary"></div>',
-    '              <div class="actions"><button class="ghost" type="button" data-section-jump="features">Explore files</button><button class="primary" type="button" data-section-jump="delegate">Create AI task</button></div>',
+    '              <div class="actions"><button class="ghost" type="button" data-section-jump="features">Browse project</button><button class="primary" type="button" data-section-jump="delegate">Create AI task</button></div>',
     "            </section>",
     '            <section class="panel">',
     '              <div class="card-header"><div><h3>Risk Notes</h3><p>Simple watch-outs before delegating work.</p></div><span class="badge green">Read-only</span></div>',
@@ -104,7 +104,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "          </div>",
     '          <div id="metric-grid" class="metric-grid"></div>',
     '          <section class="panel report-panel">',
-    '            <div class="card-header"><div><h3>Friendly Folder Map</h3><p>Raw folders translated into human meaning.</p></div><button class="secondary" type="button" data-section-jump="features">Open Explore</button></div>',
+    '            <div class="card-header"><div><h3>Friendly Folder Map</h3><p>Raw folders translated into human meaning.</p></div><button class="secondary" type="button" data-section-jump="features">Open Browse</button></div>',
     '            <div id="folder-map" class="list"></div>',
     "          </section>",
     '          <div class="content-grid two-column">',
@@ -121,12 +121,16 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '        <section id="features" class="view-section" aria-labelledby="features-title">',
     '          <div class="topbar">',
     '            <div class="title-block">',
-    '              <h2 id="features-title">Explore</h2>',
-    '              <p>Search features, documents, folders, and systems without forcing raw file-tree work.</p>',
+    '              <h2 id="features-title">Browse Project</h2>',
+    '              <p>Use friendly folder cards first, then search features, documents, and systems when you need more detail.</p>',
     "            </div>",
     '            <div id="generated-at" class="repo-pill"></div>',
     "          </div>",
-    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab active explore-tab" type="button" data-section="features">Features</button><button class="tab explore-tab" type="button" data-section="documents">Documents</button><button class="tab explore-tab" type="button" data-section="backend">Systems</button></div>',
+    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab active explore-tab" type="button" data-section="features">Browse</button><button class="tab explore-tab" type="button" data-section="documents">Documents</button><button class="tab explore-tab" type="button" data-section="backend">Systems</button></div>',
+    '          <section class="panel report-panel">',
+    '            <div class="card-header"><div><h3>Folder Guide</h3><p>Plain-English map of where to start, where to use care, and what to avoid.</p></div></div>',
+    '            <div id="browse-folder-cards" class="vibe-card-grid browse-grid"></div>',
+    "          </section>",
     '          <label class="search-field full-search"><span>Search features</span><input id="feature-search" type="search" placeholder="feature, file, keyword, folder"></label>',
     '          <div class="feature-layout">',
     '            <div id="feature-cards" class="feature-list"></div>',
@@ -144,7 +148,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <p>Open README, markdown, SQL, JSON, YAML, and text files from the read-only scan.</p>',
     "            </div>",
     "          </div>",
-    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab explore-tab" type="button" data-section="features">Features</button><button class="tab active explore-tab" type="button" data-section="documents">Documents</button><button class="tab explore-tab" type="button" data-section="backend">Systems</button></div>',
+    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab explore-tab" type="button" data-section="features">Browse</button><button class="tab active explore-tab" type="button" data-section="documents">Documents</button><button class="tab explore-tab" type="button" data-section="backend">Systems</button></div>',
     '          <label class="search-field full-search"><span>Search documents</span><input id="document-search" type="search" placeholder="readme, docs, sql, notes"></label>',
     '          <div class="document-layout">',
     '            <div id="document-list" class="document-list"></div>',
@@ -187,7 +191,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <p>Technical evidence grouped by detected systems and manifests.</p>',
     "            </div>",
     "          </div>",
-    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab explore-tab" type="button" data-section="features">Features</button><button class="tab explore-tab" type="button" data-section="documents">Documents</button><button class="tab active explore-tab" type="button" data-section="backend">Systems</button></div>',
+    '          <div class="tabs" role="tablist" aria-label="Explore sections"><button class="tab explore-tab" type="button" data-section="features">Browse</button><button class="tab explore-tab" type="button" data-section="documents">Documents</button><button class="tab active explore-tab" type="button" data-section="backend">Systems</button></div>',
     '          <div class="content-grid system-grid">',
     '            <section class="panel"><div class="card-header"><div><h3>Node and Manifests</h3><p>Package scripts, frameworks, and root manifests.</p></div></div><div id="node-map" class="file-list packet"></div></section>',
     '            <section class="panel"><div class="card-header"><div><h3>Unity</h3><p>Scenes, prefabs, resources, and SEL folders.</p></div></div><div id="unity-map" class="file-list packet"></div></section>',
@@ -214,6 +218,10 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <h2 id="history-title">History</h2>',
     '              <p>Recent generated files and scans stay inside ProNav so the target repo remains untouched.</p>',
     "            </div>",
+    "          </div>",
+    '          <div class="content-grid two-column">',
+    '            <section class="panel"><div class="card-header"><div><h3>Project Memory</h3><p>Scans, validations, handoffs, and notes remembered locally by ProNav.</p></div><button class="secondary" type="button" id="refresh-memory-button">Refresh</button></div><div id="memory-timeline" class="file-list packet"></div></section>',
+    '            <section class="panel"><div class="card-header"><div><h3>Remember this about the project</h3><p>Add a local note to make future handoffs more grounded.</p></div></div><form id="memory-note-form" class="handoff-form"><textarea id="memory-note-text" rows="5" placeholder="Example: The settings screen lives in src/app/settings."></textarea><button id="memory-note-button" class="primary" type="submit">Save Note</button></form><div id="memory-note-error" class="error-box" role="alert" hidden></div></section>',
     "          </div>",
     '          <section class="panel"><div class="card-header"><div><h3>Generated Outputs</h3><p>Open reports from the latest scan, then create follow-up handoffs from Delegate.</p></div><button class="secondary" type="button" data-section-jump="connect">Scan another repo</button></div><div id="history-report-links" class="button-row packet"></div></section>',
     "        </section>",
@@ -1132,6 +1140,7 @@ let appData = JSON.parse(rawData);
 let selectedFeatureId = appData?.features?.[0]?.id ?? null;
 let selectedDocumentPath = appData?.documents?.files?.[0]?.path ?? null;
 let lastHandoffPrompt = "";
+let projectMemory = null;
 const themeToggle = document.getElementById("theme-toggle");
 const openFolderButton = document.getElementById("open-folder-button");
 
@@ -1232,11 +1241,13 @@ function renderDashboard(data) {
   renderOverview();
   renderVibeSummary();
   renderFriendlyProject();
+  renderBrowseProject();
   renderFeatureCards();
   renderFeatureDetail();
   renderDocuments();
   renderSystemMap();
   renderValidation();
+  loadProjectMemory();
   showSection("overview", false);
 }
 
@@ -1405,6 +1416,46 @@ function renderFeatureDetail() {
     : fileRow("No high-signal files matched this feature profile.");
 }
 
+function renderBrowseProject() {
+  const folders = appData.browse?.folders?.length
+    ? appData.browse.folders
+    : appData.folders.map((folder) => ({
+        path: folder.path,
+        label: folder.label,
+        category: "other",
+        safety: "use-care",
+        description: folder.description,
+        reason: "This folder was found in the read-only scan.",
+        nextAction: "Ask an AI assistant to explain this folder before changing it.",
+        fileCount: folder.fileCount
+      }));
+
+  document.getElementById("browse-folder-cards").innerHTML = folders.length
+    ? folders
+        .map((folder, index) => {
+          return '<article class="vibe-card browse-card"><div class="vibe-card-title"><h4>' + escapeHtml(folder.label || folder.path) + '</h4><span class="badge ' + vibeSafetyClass(folder.safety) + '">' + escapeHtml(vibeSafetyLabel(folder.safety)) + '</span></div><p>' + escapeHtml(folder.description) + '</p><p class="muted">' + escapeHtml(folder.reason || "") + '</p><p class="muted">Next: ' + escapeHtml(folder.nextAction || "Use this as task context.") + '</p><div class="vibe-paths"><span class="path-chip">' + escapeHtml(folder.path) + '</span><span class="path-chip">' + escapeHtml(folder.category) + '</span><span class="path-chip">' + escapeHtml(folder.fileCount ?? 0) + ' files</span></div><button class="secondary" type="button" data-browse-folder-index="' + index + '">Use in Delegate</button></article>';
+        })
+        .join("")
+    : '<div class="file-row">No folder cards are available for this scan yet.</div>';
+
+  document.querySelectorAll("[data-browse-folder-index]").forEach((button) => {
+    button.addEventListener("click", () => prefillDelegateFromBrowse(Number(button.dataset.browseFolderIndex)));
+  });
+}
+
+function prefillDelegateFromBrowse(index) {
+  const folders = appData.browse?.folders?.length ? appData.browse.folders : appData.folders;
+  const folder = folders?.[index];
+  if (!folder) return;
+
+  document.getElementById("handoff-task-type").value = "explain-code";
+  document.getElementById("handoff-scope").value = folder.path;
+  document.getElementById("handoff-goal").value = "Explain what the " + folder.path + " folder does, which files matter most, what is safe to change, and what validation should run before edits are trusted.";
+  document.getElementById("handoff-meta").textContent = "Prefilled from Browse Project: " + (folder.label || folder.path);
+  showSection("delegate");
+  document.getElementById("handoff-goal").focus();
+}
+
 function renderDocuments() {
   const query = document.getElementById("document-search").value.trim().toLowerCase();
   const documents = (appData.documents?.files ?? []).filter((documentFile) => {
@@ -1502,6 +1553,7 @@ async function submitHandoff(event) {
     link.href = body.path;
     link.hidden = false;
     document.getElementById("copy-handoff-button").hidden = false;
+    loadProjectMemory();
   } catch (error) {
     errorBox.textContent = error instanceof Error ? error.message : String(error);
     errorBox.hidden = false;
@@ -1614,6 +1666,7 @@ async function runValidationCommand(index, button) {
     const status = body.exitCode === 0 ? "Passed" : "Failed";
     meta.textContent = status + " | exit " + body.exitCode + " | " + Math.round((body.durationMs ?? 0) / 1000) + "s" + (body.timedOut ? " | timed out" : "") + ". Click Validation Output to inspect stdout and stderr.";
     output.textContent = formatValidationOutput(body);
+    loadProjectMemory();
   } catch (error) {
     meta.textContent = "Validation could not run. Click Validation Output to inspect stdout and stderr.";
     output.textContent = error instanceof Error ? error.message : String(error);
@@ -1630,6 +1683,95 @@ function formatValidationOutput(result) {
     result.stdout ? "stdout:\\n" + result.stdout : "stdout: (empty)",
     result.stderr ? "stderr:\\n" + result.stderr : "stderr: (empty)"
   ].join("\\n\\n");
+}
+
+async function loadProjectMemory() {
+  if (!appData?.project?.slug) return;
+  try {
+    const response = await fetch("/api/memory?project=" + encodeURIComponent(appData.project.slug));
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Memory load failed.");
+    projectMemory = body;
+    renderProjectMemory();
+  } catch (error) {
+    const timeline = document.getElementById("memory-timeline");
+    if (timeline) {
+      timeline.innerHTML = fileRow(error instanceof Error ? error.message : String(error));
+    }
+  }
+}
+
+function renderProjectMemory() {
+  const timeline = document.getElementById("memory-timeline");
+  if (!timeline) return;
+  const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], notes: [] };
+  const entries = [
+    ...(memory.notes ?? []).map((note) => ({
+      label: "Note",
+      when: note.createdAt,
+      text: note.text
+    })),
+    ...(memory.validations ?? []).map((validation) => ({
+      label: validation.exitCode === 0 ? "Validation passed" : "Validation failed",
+      when: validation.createdAt,
+      text: validation.command + " | exit " + validation.exitCode + " | " + Math.round((validation.durationMs ?? 0) / 1000) + "s"
+    })),
+    ...(memory.handoffs ?? []).map((handoff) => ({
+      label: "Handoff",
+      when: handoff.createdAt,
+      text: handoff.agent + " " + handoff.taskType + " | " + handoff.goal
+    })),
+    ...(memory.scans ?? []).map((scan) => ({
+      label: "Scan",
+      when: scan.generatedAt,
+      text: scan.projectType + " | " + scan.files + " files | " + scan.documents + " docs | " + scan.dirtyEntries + " git entries"
+    }))
+  ].sort((a, b) => text(b.when).localeCompare(text(a.when)));
+
+  timeline.innerHTML = entries.length
+    ? entries.slice(0, 30).map((entry) => fileRow(entry.label + " · " + formatDateTime(entry.when) + " · " + entry.text)).join("")
+    : fileRow("No memory yet. Scan, validate, generate a handoff, or add a note.");
+}
+
+async function submitMemoryNote(event) {
+  event.preventDefault();
+  if (!appData?.project?.slug) return;
+  const textArea = document.getElementById("memory-note-text");
+  const button = document.getElementById("memory-note-button");
+  const errorBox = document.getElementById("memory-note-error");
+  const noteText = textArea.value.trim();
+  errorBox.hidden = true;
+  errorBox.textContent = "";
+  button.disabled = true;
+  button.textContent = "Saving";
+
+  try {
+    const response = await fetch("/api/notes", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: appData.project.slug,
+        text: noteText
+      })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Note save failed.");
+    projectMemory = body;
+    textArea.value = "";
+    renderProjectMemory();
+  } catch (error) {
+    errorBox.textContent = error instanceof Error ? error.message : String(error);
+    errorBox.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save Note";
+  }
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown time";
+  return date.toLocaleString();
 }
 
 function bindNavigation() {
@@ -1649,6 +1791,8 @@ function bindNavigation() {
   document.getElementById("document-search").addEventListener("input", renderDocuments);
   document.getElementById("handoff-form").addEventListener("submit", submitHandoff);
   document.getElementById("copy-handoff-button").addEventListener("click", copyHandoffPrompt);
+  document.getElementById("memory-note-form").addEventListener("submit", submitMemoryNote);
+  document.getElementById("refresh-memory-button").addEventListener("click", loadProjectMemory);
 }
 
 async function submitRepoScan(event) {
@@ -1672,6 +1816,7 @@ async function submitRepoScan(event) {
     if (!response.ok) throw new Error(body.error || "Scan failed.");
     renderDashboard(body);
     loadRecentProjects();
+    loadProjectMemory();
   } catch (error) {
     errorBox.textContent = error instanceof Error ? error.message : String(error);
     errorBox.hidden = false;

@@ -6,6 +6,13 @@ import { extname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { renderAppHtml, renderAppScript, renderAppStyles } from "../app/staticApp.js";
 import { buildHandoff, type HandoffAgent, type HandoffTaskType } from "../handoffs/handoff.js";
+import {
+  addProjectNote,
+  appendHandoffMemory,
+  appendScanMemory,
+  appendValidationMemory,
+  readProjectMemory
+} from "../memory/projectMemory.js";
 import { loadProfile } from "../profile.js";
 import { createGeneratedProfile, slugify } from "../project/profileGenerator.js";
 import { writeProjectOutputs } from "../project/outputs.js";
@@ -91,6 +98,17 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/memory") {
+      const project = url.searchParams.get("project")?.trim() ?? "";
+      if (!project) {
+        sendJson(response, 400, { error: "Project slug is required." });
+        return;
+      }
+
+      sendJson(response, 200, await readProjectMemory(workspaceRoot, project));
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/pick-folder") {
       const repoPath = await pickFolder();
       if (!repoPath) {
@@ -136,6 +154,17 @@ async function handleRequest(
         workspaceRoot,
         reportPathPrefix: "/reports"
       });
+      await appendScanMemory(workspaceRoot, {
+        slug: outputs.data.project.slug,
+        name: outputs.data.project.name,
+        repoRoot: outputs.data.project.repoRoot,
+        projectType: outputs.data.project.type,
+        detectedCapabilities: outputs.data.project.detectedCapabilities,
+        generatedAt: outputs.data.project.generatedAt,
+        files: outputs.data.metrics.files,
+        documents: outputs.data.metrics.documents,
+        dirtyEntries: outputs.data.metrics.dirtyEntries
+      });
       sendJson(response, 200, outputs.data);
       return;
     }
@@ -147,6 +176,11 @@ async function handleRequest(
 
     if (request.method === "POST" && url.pathname === "/api/validate") {
       sendJson(response, 200, await runValidationFromRequest(workspaceRoot, await readJsonBody(request)));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/notes") {
+      sendJson(response, 200, await addNoteFromRequest(workspaceRoot, await readJsonBody(request)));
       return;
     }
 
@@ -197,18 +231,31 @@ async function createHandoffFromRequest(
   relevantFiles: string[];
 }> {
   const project = requireProjectSlug(body.project);
+  const agent = parseAgent(body.agent);
+  const taskType = parseTaskType(body.taskType);
+  const goal = typeof body.goal === "string" ? body.goal : "";
+  const scope = typeof body.scope === "string" ? body.scope : undefined;
   const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
   const scan = await collectScan(profile);
   const handoff = buildHandoff(scan, {
-    agent: parseAgent(body.agent),
-    taskType: parseTaskType(body.taskType),
-    goal: typeof body.goal === "string" ? body.goal : "",
-    scope: typeof body.scope === "string" ? body.scope : undefined
+    agent,
+    taskType,
+    goal,
+    scope
   });
   const handoffPath = join(workspaceRoot, "handoffs", project, `${handoff.slug}.md`);
 
   await mkdir(join(workspaceRoot, "handoffs", project), { recursive: true });
   await writeFile(handoffPath, `${handoff.markdown.trimEnd()}\n`, "utf8");
+  await appendHandoffMemory(workspaceRoot, project, {
+    agent,
+    taskType,
+    goal,
+    scope: scope ?? null,
+    path: `/handoffs/${project}/${handoff.slug}.md`,
+    relevantFiles: handoff.relevantFiles,
+    createdAt: new Date().toISOString()
+  });
 
   return {
     slug: handoff.slug,
@@ -247,7 +294,7 @@ async function runValidationFromRequest(
       env: { ...process.env, CI: process.env.CI ?? "1" }
     });
 
-    return {
+    const validationResult = {
       command,
       exitCode: 0,
       stdout: truncateValidationOutput(result.stdout),
@@ -255,6 +302,14 @@ async function runValidationFromRequest(
       durationMs: Date.now() - startedAt,
       timedOut: false
     };
+    await appendValidationMemory(workspaceRoot, project, {
+      command: validationResult.command,
+      exitCode: validationResult.exitCode,
+      durationMs: validationResult.durationMs,
+      timedOut: validationResult.timedOut,
+      createdAt: new Date().toISOString()
+    });
+    return validationResult;
   } catch (error) {
     const executionError = error as {
       code?: unknown;
@@ -264,7 +319,7 @@ async function runValidationFromRequest(
       stderr?: unknown;
     };
 
-    return {
+    const validationResult = {
       command,
       exitCode: typeof executionError.code === "number" ? executionError.code : executionError.killed ? 124 : 1,
       stdout: truncateValidationOutput(outputText(executionError.stdout)),
@@ -272,7 +327,28 @@ async function runValidationFromRequest(
       durationMs: Date.now() - startedAt,
       timedOut: executionError.killed === true || executionError.signal === "SIGTERM"
     };
+    await appendValidationMemory(workspaceRoot, project, {
+      command: validationResult.command,
+      exitCode: validationResult.exitCode,
+      durationMs: validationResult.durationMs,
+      timedOut: validationResult.timedOut,
+      createdAt: new Date().toISOString()
+    });
+    return validationResult;
   }
+}
+
+async function addNoteFromRequest(workspaceRoot: string, body: Record<string, unknown>) {
+  const project = requireProjectSlug(body.project);
+  const text = typeof body.text === "string" ? body.text.trim() : "";
+  if (!text) {
+    throw new Error("Note text is required.");
+  }
+
+  return addProjectNote(workspaceRoot, project, {
+    text,
+    createdAt: new Date().toISOString()
+  });
 }
 
 function parseCommandIndex(value: unknown): number {
@@ -452,5 +528,5 @@ function contentType(path: string): string {
 
 function isUserInputError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /Repo path|Profile|Configured|feature|document|handoff|outside the scanned repo/i.test(message);
+  return /Repo path|Profile|Configured|feature|document|handoff|note|Project slug|outside the scanned repo/i.test(message);
 }

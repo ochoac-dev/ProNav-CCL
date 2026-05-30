@@ -45,10 +45,22 @@ describe("local app server", () => {
     expect(existsSync(join(workspaceRoot, "project_profiles", "generated", "server-fixture.yml"))).toBe(true);
     expect(existsSync(join(workspaceRoot, "reports", "server-fixture", "plain-overview.md"))).toBe(true);
     expect(existsSync(join(workspaceRoot, "app", "server-fixture", "data.json"))).toBe(true);
+    expect(existsSync(join(workspaceRoot, "memory", "server-fixture", "project-memory.json"))).toBe(true);
     expect(existsSync(join(repoRoot, "reports"))).toBe(false);
+    expect(existsSync(join(repoRoot, "memory"))).toBe(false);
     expect(execFileSync("git", ["-C", repoRoot, "status", "--short"], { encoding: "utf8" })).toBe(
       "?? docs/\n?? package.json\n?? src/\n"
     );
+
+    const memoryResponse = await fetch(`${server.url}/api/memory?project=server-fixture`);
+    const memory = (await memoryResponse.json()) as {
+      scans: Array<{ projectType: string; files: number; documents: number }>;
+    };
+    expect(memoryResponse.status).toBe(200);
+    expect(memory.scans[0]).toMatchObject({
+      projectType: "node",
+      documents: body.documents.totalDocuments
+    });
   });
 
   it("returns an actionable error for a missing repo path", async () => {
@@ -216,5 +228,70 @@ describe("local app server", () => {
     expect(body.stdout).toContain("VALIDATION_OK");
     expect(body.stdout).not.toContain("should-not-run");
     expect(body.timedOut).toBe(false);
+
+    const memoryResponse = await fetch(`${server.url}/api/memory?project=validation-fixture`);
+    const memory = (await memoryResponse.json()) as {
+      validations: Array<{ command: string; exitCode: number; timedOut: boolean }>;
+    };
+    expect(memory.validations[0]).toMatchObject({
+      command: `npm --prefix ${repoRoot} test`,
+      exitCode: 0,
+      timedOut: false
+    });
+  });
+
+  it("stores handoff history and user notes inside project memory", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-memory-"));
+    const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-memory-repo-"));
+    mkdirSync(join(repoRoot, "src"), { recursive: true });
+    writeFileSync(join(repoRoot, "src", "index.ts"), "export const value = 1;\n");
+
+    const server = await startLocalServer({ port: 0, workspaceRoot });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/scan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repoPath: repoRoot, name: "Memory Server Fixture" })
+    });
+
+    const handoffResponse = await fetch(`${server.url}/api/handoff`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "memory-server-fixture",
+        agent: "claude",
+        taskType: "explain-code",
+        goal: "Explain the src folder.",
+        scope: "src"
+      })
+    });
+    expect(handoffResponse.status).toBe(200);
+
+    const noteResponse = await fetch(`${server.url}/api/notes`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "memory-server-fixture",
+        text: "The user cares most about src."
+      })
+    });
+    expect(noteResponse.status).toBe(200);
+
+    const memoryResponse = await fetch(`${server.url}/api/memory?project=memory-server-fixture`);
+    const memory = (await memoryResponse.json()) as {
+      handoffs: Array<{ agent: string; taskType: string; goal: string; scope: string }>;
+      notes: Array<{ text: string }>;
+    };
+    expect(memory.handoffs[0]).toMatchObject({
+      agent: "claude",
+      taskType: "explain-code",
+      goal: "Explain the src folder.",
+      scope: "src"
+    });
+    expect(memory.notes[0]).toMatchObject({
+      text: "The user cares most about src."
+    });
+    expect(existsSync(join(repoRoot, "memory"))).toBe(false);
   });
 });
