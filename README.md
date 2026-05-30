@@ -17,6 +17,45 @@ Then open `http://127.0.0.1:4173`, choose **Open Folder**, or type the local pat
 
 Generated profiles, reports, app data, and handoff packets are written inside the ProNav workspace under ignored local folders. ProNav should not create, edit, stage, or format files inside the repo being scanned.
 
+## What People Need To Do
+
+ProNav is meant to give vibe coders and non-technical builders a safer loop before they ask an AI coding tool to change a project.
+
+1. **Open ProNav**
+   Use the desktop app when available. Developers can also run the local web app with `npm run pronav -- serve --port 4173`.
+
+2. **Choose a project folder**
+   Click **Open Folder** or paste the local path to the project you want to understand. ProNav scans that folder read-only and keeps its own generated files outside the scanned project.
+
+3. **Read the project map first**
+   Start on **Understand** and **Browse**. Look for what the project is, where screen/app behavior lives, which files are backend or database related, and which paths are protected.
+
+4. **Create a small AI task**
+   Go to **Delegate**, choose the coding app, pick a task type, add an optional folder or file scope, and describe one clear goal in normal language. Smaller tasks are easier to review and validate.
+
+5. **Use Codex carefully**
+   If you choose **Codex**, generate the handoff packet first. Click **Run in Codex** only after reviewing the confirmation panel. Codex may edit files in the selected repo, so check the repo path, handoff path, and suggested validation command before pressing **Start Codex**.
+
+6. **Review what changed**
+   After a Codex run, use the review panel and History to inspect the transcript and changed-file list. Do not trust the result only because the tool finished.
+
+7. **Run validation before shipping**
+   Open **Validate** and run the recommended checks. If validation fails, use the output and changed-file list to create a follow-up handoff instead of guessing.
+
+8. **Keep useful notes**
+   Add project notes in **History** for decisions, warnings, setup facts, or things future AI tasks should know.
+
+## Codex Setup
+
+The in-app Codex runner expects the Codex CLI to be installed and available on the user's `PATH`. ProNav runs saved handoff packets with Codex from the selected project folder and stores the transcript in ProNav history.
+
+Before using **Run in Codex**, confirm:
+
+- The selected repo path is correct.
+- The handoff packet describes the intended task.
+- The repo has no unrelated dirty changes, or those changes are intentionally part of the work.
+- You are ready to inspect changed files and run validation afterward.
+
 ## Desktop App
 
 ProNav can also run as an Electron desktop app:
