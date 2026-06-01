@@ -30,6 +30,10 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '        <button class="nav-button" type="button" data-section="validation"><span class="nav-icon">✓</span><span class="label">Validate</span></button>',
     '        <button class="nav-button" type="button" data-section="history"><span class="nav-icon">◷</span><span class="label">History</span></button>',
     "      </nav>",
+    '      <div class="learning-depth-control">',
+    '        <label for="learning-depth-select"><span>Explanation depth</span><select id="learning-depth-select"><option value="builder">Builder</option><option value="developer">Developer</option><option value="senior">Senior</option></select></label>',
+    '        <p id="learning-depth-help">Builder keeps explanations plain and practical.</p>',
+    "      </div>",
     '      <div class="sidebar-panel">',
     '        <p class="panel-label">Design principle</p>',
     '        <p>Every screen explains what exists, why it matters, and how to hand the next task to an AI coder.</p>',
@@ -92,6 +96,16 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <div id="vibe-ai-tasks" class="vibe-card-grid"></div>',
     "            </section>",
     "          </div>",
+    '          <section class="panel learning-panel">',
+    '            <div class="card-header"><div><h3>What am I seeing?</h3><p id="learning-depth-description">Builder-level explanations are shown by default.</p></div></div>',
+    '            <div id="learning-guide" class="learning-guide"></div>',
+    '            <div id="learning-project-explanation" class="file-list packet"></div>',
+    '            <div id="learning-suggested-next" class="learning-next"></div>',
+    '            <div id="learning-concepts" class="learning-concepts">',
+    '              <div id="learning-concept-summary" class="learning-concept-summary"></div>',
+    '              <details id="learning-concept-details" class="learning-details"><summary>Explore more when ready</summary><div id="learning-concept-list" class="concept-grid"></div></details>',
+    "            </div>",
+    "          </section>",
     '          <div class="content-grid hero-grid secondary-grid">',
     '            <section class="panel">',
     '              <div class="card-header"><div><h3>Plain Scan Summary</h3><p>Older scan summary kept for quick reference.</p></div></div>',
@@ -138,6 +152,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '              <div class="card-header"><div><h3 id="feature-detail-title">Select a feature</h3><p id="feature-detail-description" class="muted"></p></div></div>',
     '              <div id="feature-detail-meta" class="detail-meta packet"></div>',
     '              <div id="feature-file-list" class="file-list packet"></div>',
+    '              <div id="feature-file-lens" class="learning-panel inline-learning"></div>',
     "            </section>",
     "          </div>",
     "        </section>",
@@ -155,6 +170,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '            <section class="panel document-preview">',
     '              <div class="card-header"><div><h3 id="document-preview-title">Select a document</h3><p id="document-preview-meta" class="muted"></p></div></div>',
     '              <pre id="document-preview-content" class="document-content"></pre>',
+    '              <div id="document-file-lens" class="learning-panel inline-learning"></div>',
     "            </section>",
     "          </div>",
     "        </section>",
@@ -176,6 +192,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '                <label class="step"><small>Step 4</small><span>Describe the goal</span><textarea id="handoff-goal" rows="6" placeholder="Describe the task in normal language"></textarea></label>',
     '                <button id="handoff-button" class="primary" type="submit">Generate Handoff</button>',
     "              </form>",
+    '              <div id="delegate-learning-explainer" class="learning-panel inline-learning"></div>',
     '              <div id="handoff-error" class="error-box" role="alert" hidden></div>',
     "            </section>",
     '            <section class="panel">',
@@ -219,7 +236,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "          </div>",
     '          <div class="content-grid two-column">',
     '            <section class="panel"><div class="card-header"><div><h3>Recommended Checks</h3><p>Each command tells the next coding agent how to prove the work.</p></div></div><div id="validation-list" class="file-list packet"></div></section>',
-    '            <section class="panel"><div class="card-header"><div><h3>Protected Paths</h3><p>These should appear in every generated packet.</p></div></div><div id="protected-list" class="file-list packet"></div></section>',
+    '            <section class="panel"><div class="card-header"><div><h3>Protected Paths</h3><p>These should appear in every generated packet.</p></div></div><div id="protected-list" class="file-list packet"></div><div id="validation-learning-explainer" class="learning-panel inline-learning"></div></section>',
     "          </div>",
     '          <details id="validation-output-panel" class="panel report-panel validation-output-panel"><summary>Validation Output <span id="validation-meta" class="muted">Run a recommended check, then open this to inspect stdout and stderr.</span></summary><pre id="validation-output" class="document-content validation-output"></pre></details>',
     "        </section>",
@@ -231,7 +248,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "            </div>",
     "          </div>",
     '          <div class="content-grid two-column">',
-    '            <section class="panel"><div class="card-header"><div><h3>Project Memory</h3><p>Scans, validations, handoffs, and notes remembered locally by ProNav.</p></div><button class="secondary" type="button" id="refresh-memory-button">Refresh</button></div><div id="memory-summary" class="file-list packet"></div><div id="memory-timeline" class="file-list packet"></div></section>',
+    '            <section class="panel"><div class="card-header"><div><h3>Project Memory</h3><p>Scans, validations, handoffs, and notes remembered locally by ProNav.</p></div><button class="secondary" type="button" id="refresh-memory-button">Refresh</button></div><div id="history-learning-explainer" class="learning-panel inline-learning"></div><div id="memory-summary" class="file-list packet"></div><div id="memory-timeline" class="file-list packet"></div></section>',
     '            <section class="panel"><div class="card-header"><div><h3>Remember this about the project</h3><p>Add a local note to make future handoffs more grounded.</p></div></div><form id="memory-note-form" class="handoff-form"><textarea id="memory-note-text" rows="5" placeholder="Example: The settings screen lives in src/app/settings."></textarea><button id="memory-note-button" class="primary" type="submit">Save Note</button></form><div id="memory-note-error" class="error-box" role="alert" hidden></div></section>',
     "          </div>",
     '          <section class="panel"><div class="card-header"><div><h3>Generated Outputs</h3><p>Open reports from the latest scan, then create follow-up handoffs from Delegate.</p></div><button class="secondary" type="button" data-section-jump="connect">Scan another repo</button></div><div id="history-report-links" class="button-row packet"></div></section>',
@@ -397,24 +414,32 @@ p { line-height: 1.5; }
   border-radius: 13px;
   background: transparent;
   color: var(--text);
-  padding: 12px 14px;
+  padding: 8px 10px;
   text-align: left;
   cursor: pointer;
-  display: flex;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  column-gap: 12px;
   width: 100%;
+  min-height: 56px;
   font-size: 14px;
 }
 
 .nav-icon {
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  justify-self: center;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--text) 7%, transparent);
   font-size: 13px;
+}
+
+.nav-button span.label {
+  min-width: 0;
+  line-height: 1.2;
 }
 
 .nav-button:hover,
@@ -443,6 +468,38 @@ p { line-height: 1.5; }
 .sidebar-panel .panel-label { color: rgba(255, 255, 255, 0.64); }
 .sidebar-panel p:last-child { margin-bottom: 0; }
 
+.learning-depth-control {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.learning-depth-control label {
+  display: grid;
+  gap: 7px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.learning-depth-control select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.learning-depth-control p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .theme-toggle {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -458,7 +515,8 @@ p { line-height: 1.5; }
   padding: 28px;
   overflow: auto;
   max-width: 1440px;
-  width: 100%;
+  width: min(100%, 1440px);
+  margin: 0 auto;
 }
 
 .connect-card,
@@ -496,12 +554,15 @@ p { line-height: 1.5; }
   grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 22px;
+  width: 100%;
 }
 
 .connect-actions {
   display: grid;
-  grid-template-columns: minmax(160px, 0.45fr) minmax(180px, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  width: 100%;
+  align-items: stretch;
 }
 
 .connect-actions button {
@@ -562,6 +623,8 @@ button,
   align-items: center;
   gap: 8px;
   text-decoration: none;
+  justify-content: center;
+  text-align: center;
 }
 
 .primary {
@@ -608,6 +671,177 @@ button,
   color: var(--muted);
 }
 
+.learning-panel {
+  margin-top: 18px;
+}
+
+.learning-guide {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 12px;
+}
+
+.learning-guide-header h4 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.learning-guide-header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.learning-step {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: start;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.learning-step-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.learning-step strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.learning-step p {
+  margin: 0;
+}
+
+.learning-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.learning-next p {
+  margin: 0;
+}
+
+.learning-concepts {
+  padding: 0 18px 18px;
+}
+
+.learning-concept-summary {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.learning-concept-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.32fr) 1fr;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.learning-concept-row strong {
+  font-size: 13px;
+}
+
+.learning-concept-row p {
+  margin: 0;
+}
+
+.learning-details {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  overflow: hidden;
+}
+
+.learning-details summary {
+  cursor: pointer;
+  padding: 11px 12px;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.inline-learning {
+  margin: 14px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  padding: 14px;
+}
+
+.learning-panel h4,
+.inline-learning h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.learning-panel p,
+.inline-learning p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.concept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  padding: 0 12px 12px;
+}
+
+.concept-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.concept-card h4 {
+  margin: 0 0 6px;
+}
+
+.concept-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.explain-card {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel) 68%, transparent);
+  padding: 10px 12px;
+}
+
+.explain-card summary {
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.explain-card p {
+  margin: 8px 0 0;
+}
+
 .error-box {
   margin-top: 12px;
   border: 1px solid #f3b0aa;
@@ -652,9 +886,23 @@ button,
 .topbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 20px;
   margin-bottom: 22px;
+  min-width: 0;
+  width: 100%;
+}
+
+.topbar .title-block {
+  min-width: 0;
+}
+
+.topbar .title-block > * {
+  width: 100%;
+}
+
+.topbar .repo-pill {
+  flex-shrink: 0;
 }
 
 .topbar.compact { margin-bottom: 12px; }
@@ -698,6 +946,7 @@ button,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
 .badge-row { margin-top: 10px; }
@@ -751,6 +1000,7 @@ button,
 .content-grid {
   display: grid;
   gap: 18px;
+  align-items: stretch;
 }
 .two-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .hero-grid { grid-template-columns: 1.35fr 0.85fr; }
@@ -763,8 +1013,24 @@ button,
   border-bottom: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card-header > :first-child {
+  min-width: 0;
+}
+
+.card-header > :first-child > * {
+  width: 100%;
+}
+
+.card-header .button-row {
+  margin-left: auto;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .card-header h3 { margin: 0; }
@@ -907,7 +1173,13 @@ button,
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+}
+
+.feature-layout > *,
+.document-layout > *,
+.delegate-layout > * {
+  min-width: 0;
 }
 
 .feature-list,
@@ -1084,7 +1356,7 @@ button,
   display: grid;
   grid-template-columns: 420px minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .stepper {
@@ -1113,9 +1385,14 @@ button,
   .sidebar { padding: 16px 10px; }
   .brand-block div:not(.brand-mark),
   .nav-button span.label,
-  .sidebar-panel { display: none; }
+  .sidebar-panel,
+  .learning-depth-control { display: none; }
   .brand-block { justify-content: center; padding-bottom: 18px; }
-  .nav-button { justify-content: center; padding: 12px; }
+  .nav-button {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 8px;
+  }
   .theme-toggle {
     width: 54px;
     height: 54px;
@@ -1152,6 +1429,7 @@ button,
     padding: 18px;
   }
   .brand-block div:not(.brand-mark) { display: block; }
+  .learning-depth-control { display: grid; }
   .section-nav { grid-template-columns: repeat(3, 1fr); }
   .nav-button span.label { display: none; }
   .main-surface { padding: 18px; }
@@ -1175,6 +1453,7 @@ let selectedDocumentPath = appData?.documents?.files?.[0]?.path ?? null;
 let lastHandoffPrompt = "";
 let lastHandoffPath = "";
 let projectMemory = null;
+let learningDepth = normalizeLearningDepth(localStorage.getItem("pronav-learning-depth"));
 const themeToggle = document.getElementById("theme-toggle");
 const openFolderButton = document.getElementById("open-folder-button");
 
@@ -1205,6 +1484,25 @@ function escapeHtml(value) {
 
 function fileRow(value) {
   return '<div class="file-row">' + escapeHtml(value) + "</div>";
+}
+
+function normalizeLearningDepth(value) {
+  return ["builder", "developer", "senior"].includes(value) ? value : "builder";
+}
+
+function learningDepthLabel(depth = learningDepth) {
+  const option = appData?.learning?.depths?.find((item) => item.id === depth);
+  return option?.label ?? (depth === "senior" ? "Senior" : depth === "developer" ? "Developer" : "Builder");
+}
+
+function setLearningDepth(value) {
+  learningDepth = normalizeLearningDepth(value);
+  localStorage.setItem("pronav-learning-depth", learningDepth);
+  renderLearningExplanations();
+  renderBrowseProject();
+  renderFeatureDetail();
+  renderDocuments();
+  renderValidation();
 }
 
 function nameFromPath(path) {
@@ -1281,6 +1579,7 @@ function renderDashboard(data) {
   renderDocuments();
   renderSystemMap();
   renderValidation();
+  renderLearningExplanations();
   loadProjectMemory();
   showSection("overview", false);
 }
@@ -1367,6 +1666,142 @@ function renderVibeSummary() {
   });
 }
 
+function renderLearningExplanations() {
+  if (!appData?.learning) return;
+  const select = document.getElementById("learning-depth-select");
+  if (select) select.value = learningDepth;
+  const option = appData.learning.depths.find((item) => item.id === learningDepth);
+  const help = document.getElementById("learning-depth-help");
+  if (help) help.textContent = option?.description ?? "Builder keeps explanations plain and practical.";
+  const description = document.getElementById("learning-depth-description");
+  if (description) description.textContent = (option?.label ?? learningDepthLabel()) + "-level view. Switch depth when you want more or less detail.";
+  const project = document.getElementById("learning-project-explanation");
+  if (project) {
+    project.innerHTML = [
+      fileRow(appData.learning.projectExplanation?.[learningDepth] ?? "No project explanation is available yet."),
+      fileRow("Current depth: " + learningDepthLabel())
+    ].join("");
+  }
+  renderLearningGuide();
+  renderConceptSummary();
+  renderConceptCards();
+  renderDelegateLearningExplainer();
+  renderValidationLearningExplainer();
+  renderHistoryLearningExplainer();
+}
+
+function renderLearningGuide() {
+  const guideBox = document.getElementById("learning-guide");
+  const nextBox = document.getElementById("learning-suggested-next");
+  if (!guideBox || !nextBox) return;
+  const guide = appData?.learning?.guide;
+  if (!guide) {
+    guideBox.innerHTML = '<div class="learning-guide-header"><h4>Start here</h4><p>Scan the project, choose one area, then validate changes.</p></div>';
+    nextBox.innerHTML = "";
+    return;
+  }
+
+  const steps = (guide.steps ?? []).map((step, index) => {
+    return [
+      '<div class="learning-step">',
+      '<span class="learning-step-number">' + escapeHtml(index + 1) + "</span>",
+      "<div><strong>" + escapeHtml(step.label) + "</strong><p>" + escapeHtml(step.text) + "</p></div>",
+      "</div>"
+    ].join("");
+  }).join("");
+
+  guideBox.innerHTML = [
+    '<div class="learning-guide-header"><h4>' + escapeHtml(guide.headline || "Start here") + "</h4><p>" + escapeHtml(guide.intro || "Move through the scan one step at a time.") + "</p></div>",
+    steps
+  ].join("");
+
+  nextBox.innerHTML = [
+    "<div><strong>Suggested next step</strong><p>" + escapeHtml(guide.nextAction?.text ?? "Open Browse and choose one safe starting area.") + "</p></div>",
+    '<button id="learning-next-button" class="secondary" type="button">' + escapeHtml(guide.nextAction?.label ?? "Explore one folder") + "</button>"
+  ].join("");
+  document.getElementById("learning-next-button")?.addEventListener("click", learningNextAction);
+}
+
+function learningNextAction() {
+  const targetSection = appData?.learning?.guide?.nextAction?.targetSection || "features";
+  showSection(targetSection);
+}
+
+function renderConceptSummary() {
+  const box = document.getElementById("learning-concept-summary");
+  if (!box) return;
+  const concepts = appData?.learning?.concepts ?? [];
+  if (!concepts.length) {
+    box.innerHTML = '<div class="learning-concept-row"><strong>Concepts to notice</strong><p>No strong code concepts were detected yet. Start with the project and folder explanations first.</p></div>';
+    return;
+  }
+  const limit = learningDepth === "builder" ? 2 : 3;
+  box.innerHTML = concepts.slice(0, limit).map((concept) => {
+    return '<div class="learning-concept-row"><strong>' + escapeHtml(concept.label) + '</strong><p>' + escapeHtml(concept[learningDepth] || concept.description) + "</p></div>";
+  }).join("");
+}
+
+function renderConceptCards() {
+  const box = document.getElementById("learning-concept-list") || document.getElementById("learning-concepts");
+  if (!box) return;
+  const concepts = appData?.learning?.concepts ?? [];
+  box.innerHTML = concepts.length
+    ? concepts.slice(0, 8).map((concept) => {
+        return '<article class="concept-card"><h4>' + escapeHtml(concept.label) + '</h4><p>' + escapeHtml(concept[learningDepth] || concept.description) + '</p><div class="vibe-paths">' + vibePaths(concept.paths) + "</div></article>";
+      }).join("")
+    : '<article class="concept-card"><h4>No strong code concepts detected yet</h4><p>ProNav will show algorithms, data structures, and patterns here when it can identify them from local files.</p></article>';
+}
+
+function renderFileLens(targetId, path, title) {
+  const box = document.getElementById(targetId);
+  if (!box) return;
+  if (!path) {
+    box.innerHTML = '<h4>' + escapeHtml(title) + '</h4><p>Select a file to see a depth-aware explanation.</p>';
+    return;
+  }
+  const explanation = appData?.learning?.fileExplanations?.[path];
+  if (!explanation) {
+    box.innerHTML = '<h4>' + escapeHtml(title) + '</h4><p>No file lens was generated for ' + escapeHtml(path) + '.</p>';
+    return;
+  }
+  const conceptNames = (explanation.conceptIds ?? [])
+    .map((id) => appData.learning.concepts.find((concept) => concept.id === id)?.label ?? id)
+    .slice(0, 5);
+  box.innerHTML = [
+    '<h4>' + escapeHtml(title) + '</h4>',
+    '<p>' + escapeHtml(explanation[learningDepth] ?? explanation.builder) + '</p>',
+    '<div class="vibe-paths"><span class="path-chip">' + escapeHtml(explanation.category) + '</span><span class="path-chip">' + escapeHtml(explanation.audience) + '</span>' + conceptNames.map((name) => '<span class="path-chip">' + escapeHtml(name) + '</span>').join("") + "</div>"
+  ].join("");
+}
+
+function renderDelegateLearningExplainer() {
+  const box = document.getElementById("delegate-learning-explainer");
+  if (!box) return;
+  box.innerHTML = [
+    "<h4>What am I seeing?</h4>",
+    "<p>" + escapeHtml("Delegate turns a plain-language goal into a bounded AI task. The handoff will include " + learningDepthLabel() + "-level explanation context so the coding agent knows how deeply to explain the work.") + "</p>"
+  ].join("");
+}
+
+function renderValidationLearningExplainer() {
+  const box = document.getElementById("validation-learning-explainer");
+  if (!box) return;
+  const first = appData?.learning?.validationExplanations?.[0];
+  box.innerHTML = [
+    "<h4>What am I seeing?</h4>",
+    "<p>" + escapeHtml(first?.[learningDepth] ?? "Validation commands are proof checks. Run them before trusting AI-made changes.") + "</p>"
+  ].join("");
+}
+
+function renderHistoryLearningExplainer() {
+  const box = document.getElementById("history-learning-explainer");
+  if (!box) return;
+  box.innerHTML = [
+    "<h4>What am I seeing?</h4>",
+    "<p>" + escapeHtml("History helps compare scans, handoffs, Codex runs, changed files, and validation outcomes so users can understand what changed and why it matters.") + "</p>"
+  ].join("");
+}
+
 function vibePaths(paths) {
   return paths?.length
     ? paths.slice(0, 6).map((path) => '<span class="path-chip">' + escapeHtml(path) + "</span>").join("")
@@ -1448,6 +1883,8 @@ function renderFeatureDetail() {
   document.getElementById("feature-file-list").innerHTML = feature.files.length
     ? feature.files.map((file) => fileRow(file.path + " | score " + file.score + " | " + file.matchedKeywords.join(", "))).join("")
     : fileRow("No high-signal files matched this feature profile.");
+  const firstFile = feature.files[0]?.path;
+  renderFileLens("feature-file-lens", firstFile, "Feature file lens");
 }
 
 function renderBrowseProject() {
@@ -1467,7 +1904,8 @@ function renderBrowseProject() {
   document.getElementById("browse-folder-cards").innerHTML = folders.length
     ? folders
         .map((folder, index) => {
-          return '<article class="vibe-card browse-card"><div class="vibe-card-title"><h4>' + escapeHtml(folder.label || folder.path) + '</h4><span class="badge ' + vibeSafetyClass(folder.safety) + '">' + escapeHtml(vibeSafetyLabel(folder.safety)) + '</span></div><p>' + escapeHtml(folder.description) + '</p><p class="muted">' + escapeHtml(folder.reason || "") + '</p><p class="muted">Next: ' + escapeHtml(folder.nextAction || "Use this as task context.") + '</p><div class="vibe-paths"><span class="path-chip">' + escapeHtml(folder.path) + '</span><span class="path-chip">' + escapeHtml(folder.category) + '</span><span class="path-chip">' + escapeHtml(folder.fileCount ?? 0) + ' files</span></div><button class="secondary" type="button" data-browse-folder-index="' + index + '">Use in Delegate</button></article>';
+          const explanation = appData.learning?.folderExplanations?.[folder.path]?.[learningDepth] ?? "Open this folder only after you understand what kind of work it owns.";
+          return '<article class="vibe-card browse-card"><div class="vibe-card-title"><h4>' + escapeHtml(folder.label || folder.path) + '</h4><span class="badge ' + vibeSafetyClass(folder.safety) + '">' + escapeHtml(vibeSafetyLabel(folder.safety)) + '</span></div><p>' + escapeHtml(folder.description) + '</p><p class="muted">' + escapeHtml(folder.reason || "") + '</p><details class="explain-card"><summary>What am I seeing?</summary><p>' + escapeHtml(explanation) + '</p></details><p class="muted">Next: ' + escapeHtml(folder.nextAction || "Use this as task context.") + '</p><div class="vibe-paths"><span class="path-chip">' + escapeHtml(folder.path) + '</span><span class="path-chip">' + escapeHtml(folder.category) + '</span><span class="path-chip">' + escapeHtml(folder.fileCount ?? 0) + ' files</span></div><button class="secondary" type="button" data-browse-folder-index="' + index + '">Use in Delegate</button></article>';
         })
         .join("")
     : '<div class="file-row">No folder cards are available for this scan yet.</div>';
@@ -1524,11 +1962,13 @@ async function loadDocumentPreview() {
     document.getElementById("document-preview-title").textContent = "Select a document";
     document.getElementById("document-preview-meta").textContent = "";
     document.getElementById("document-preview-content").textContent = "";
+    renderFileLens("document-file-lens", null, "File lens");
     return;
   }
 
   document.getElementById("document-preview-title").textContent = documentFile.title || documentFile.path;
   document.getElementById("document-preview-meta").textContent = documentFile.path + " | " + formatBytes(documentFile.sizeBytes);
+  renderFileLens("document-file-lens", documentFile.path, "File lens");
   if (!documentFile.previewable) {
     document.getElementById("document-preview-content").textContent = "This file is listed but not available for text preview.";
     return;
@@ -1575,7 +2015,8 @@ async function submitHandoff(event) {
         agent,
         taskType,
         goal,
-        scope: scope || undefined
+        scope: scope || undefined,
+        explanationDepth: learningDepth
       })
     });
     const body = await response.json();
@@ -1748,6 +2189,8 @@ function renderValidation() {
 }
 
 function describeValidationCommand(command) {
+  const learned = appData?.learning?.validationExplanations?.find((item) => item.command === command);
+  if (learned?.[learningDepth]) return learned[learningDepth];
   const normalized = text(command).toLowerCase();
   if (/npm\\s+(--prefix\\s+\\S+\\s+)?test\\b/.test(normalized) || /npm\\s+(--prefix\\s+\\S+\\s+)?run\\s+test\\b/.test(normalized)) {
     return "Runs the project's automated test suite. Use this to catch broken logic, components, APIs, or expected behavior after a change.";
@@ -2010,6 +2453,7 @@ function bindNavigation() {
   });
   if (themeToggle) themeToggle.addEventListener("click", toggleTheme);
   if (openFolderButton) openFolderButton.addEventListener("click", pickLocalFolder);
+  document.getElementById("learning-depth-select").addEventListener("change", (event) => setLearningDepth(event.target.value));
   document.getElementById("feature-search").addEventListener("input", renderFeatureCards);
   document.getElementById("document-search").addEventListener("input", renderDocuments);
   document.getElementById("handoff-form").addEventListener("submit", submitHandoff);

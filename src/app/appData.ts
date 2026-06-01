@@ -1,5 +1,6 @@
 import type { FeatureFile, ScanResult } from "../types.js";
 import { buildBrowseData, type AppBrowseData } from "./browseData.js";
+import { buildLearningData, type AppLearningData } from "./explanationData.js";
 
 export interface AppReportLink {
   label: string;
@@ -78,6 +79,7 @@ export interface ProNavAppData {
   };
   friendly: AppFriendlySummary;
   vibe: AppVibeSummary;
+  learning: AppLearningData;
   browse: AppBrowseData;
   folders: AppFolderSummary[];
   metrics: {
@@ -125,6 +127,7 @@ export function buildAppData(
     },
     friendly: buildFriendlySummary(scan),
     vibe: buildVibeSummary(scan),
+    learning: buildLearningData(scan),
     browse: buildBrowseData(scan),
     folders: buildFolderSummaries(scan),
     metrics: {

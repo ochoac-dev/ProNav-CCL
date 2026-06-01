@@ -180,4 +180,25 @@ describe("handoff builder", () => {
     expect(handoff.markdown).toContain("npm run build");
     expect(handoff.markdown).toContain("The user wants beginner-friendly names for settings.");
   });
+
+  it("includes explanation depth and detected concept context when requested", async () => {
+    const repoRoot = await mkdtemp(join(tmpdir(), "pronav-handoff-learning-"));
+    mkdirSync(join(repoRoot, "src"), { recursive: true });
+    writeFileSync(join(repoRoot, "src", "index.ts"), "const lookup = new Map();\nbutton.addEventListener('click', () => lookup.set('open', true));\n");
+    const scan = makeScan(repoRoot);
+
+    const handoff = buildHandoff(scan, {
+      agent: "codex",
+      taskType: "explain-code",
+      goal: "Explain the source code for a new builder.",
+      scope: "src",
+      explanationDepth: "developer"
+    });
+
+    expect(handoff.prompt).toContain("Use Developer-level explanations");
+    expect(handoff.markdown).toContain("## Explanation Context");
+    expect(handoff.markdown).toContain("Explanation depth: Developer");
+    expect(handoff.markdown).toContain("Map / dictionary");
+    expect(handoff.markdown).toContain("Event handler");
+  });
 });

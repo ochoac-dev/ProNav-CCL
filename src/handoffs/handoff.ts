@@ -1,5 +1,6 @@
 import type { ScanResult } from "../types.js";
 import { slugify } from "../app/appData.js";
+import { buildLearningData, type AppLearningData, type ExplanationDepth } from "../app/explanationData.js";
 import { summarizeProjectMemory, type ProjectMemory } from "../memory/projectMemory.js";
 
 export type HandoffAgent = "codex" | "claude" | "cursor" | "copy";
@@ -12,6 +13,7 @@ export interface HandoffRequest {
   goal: string;
   scope?: string;
   memory?: ProjectMemory;
+  explanationDepth?: ExplanationDepth;
 }
 
 export interface HandoffResult {
@@ -32,12 +34,18 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
   const relevantFiles = collectRelevantFiles(scan, scope);
   const agentLabel = agentDisplayName(request.agent);
   const taskLabel = taskTypeLabel(request.taskType);
+  const learning = buildLearningData(scan);
+  const explanationDepth = request.explanationDepth ?? null;
+  const explanationLine = explanationDepth
+    ? `Use ${depthLabel(explanationDepth)}-level explanations when explaining code, tradeoffs, and validation.`
+    : "";
   const prompt = [
     `Use ${agentLabel} to ${taskLabel.toLowerCase()} in this local repo.`,
     "",
     `Goal: ${goal}`,
     `Repo: ${scan.profile.repoRoot}`,
     scope ? `Scope: ${scope}` : "Scope: use the bounded context below",
+    explanationLine,
     "",
     "Read the handoff packet first, then inspect only the relevant files unless the task requires expanding scope.",
     request.memory ? "Use the Project Memory section for recent notes, scan changes, and validation history." : "",
@@ -60,7 +68,9 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
       scope,
       relevantFiles,
       prompt,
-      memory: request.memory
+      memory: request.memory,
+      learning,
+      explanationDepth
     })
   };
 }
@@ -75,6 +85,8 @@ function renderHandoffMarkdown(
     relevantFiles: string[];
     prompt: string;
     memory?: ProjectMemory;
+    learning: AppLearningData;
+    explanationDepth: ExplanationDepth | null;
   }
 ): string {
   return [
@@ -111,6 +123,7 @@ function renderHandoffMarkdown(
     "## Project Documents",
     "",
     ...bulletList(scan.documents.files.slice(0, 10).map((file) => file.path), "No documents detected."),
+    ...renderExplanationContext(context.learning, context.explanationDepth, context.relevantFiles),
     ...renderMemorySection(context.memory),
     "",
     "## Validation Checks",
@@ -128,6 +141,31 @@ function renderHandoffMarkdown(
     context.prompt,
     "```"
   ].join("\n");
+}
+
+function renderExplanationContext(
+  learning: AppLearningData,
+  depth: ExplanationDepth | null,
+  relevantFiles: string[]
+): string[] {
+  if (!depth) return [];
+
+  const relevant = new Set(relevantFiles);
+  const concepts = learning.concepts.filter((concept) => concept.paths.some((path) => relevant.has(path))).slice(0, 8);
+  return [
+    "",
+    "## Explanation Context",
+    "",
+    `- Explanation depth: ${depthLabel(depth)}`,
+    `- Project explanation: ${learning.projectExplanation[depth]}`,
+    "",
+    "### Detected Concepts",
+    "",
+    ...plainBulletList(
+      concepts.map((concept) => `${concept.label}: ${concept.description} Paths: ${concept.paths.slice(0, 3).join(", ")}`),
+      "No high-signal concepts were detected in the bounded file list."
+    )
+  ];
 }
 
 function collectRelevantFiles(scan: ScanResult, scope: string | null): string[] {
@@ -178,6 +216,17 @@ function taskTypeLabel(taskType: HandoffTaskType): string {
       return "Write Tests";
     case "review":
       return "Review";
+  }
+}
+
+function depthLabel(depth: ExplanationDepth): string {
+  switch (depth) {
+    case "builder":
+      return "Builder";
+    case "developer":
+      return "Developer";
+    case "senior":
+      return "Senior";
   }
 }
 

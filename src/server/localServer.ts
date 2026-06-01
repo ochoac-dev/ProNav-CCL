@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { renderAppHtml, renderAppScript, renderAppStyles } from "../app/staticApp.js";
 import { defaultCodexCommand, runCodexCli, type CodexRunner, type CodexRunResult } from "../codex/codexRunner.js";
 import { buildHandoff, type HandoffAgent, type HandoffTaskType } from "../handoffs/handoff.js";
+import type { ExplanationDepth } from "../app/explanationData.js";
 import {
   addProjectNote,
   appendCodexRunMemory,
@@ -249,6 +250,7 @@ async function createHandoffFromRequest(
   const project = requireProjectSlug(body.project);
   const agent = parseAgent(body.agent);
   const taskType = parseTaskType(body.taskType);
+  const explanationDepth = parseExplanationDepth(body.explanationDepth);
   const goal = typeof body.goal === "string" ? body.goal : "";
   const scope = typeof body.scope === "string" ? body.scope : undefined;
   const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
@@ -259,7 +261,8 @@ async function createHandoffFromRequest(
     taskType,
     goal,
     scope,
-    memory
+    memory,
+    explanationDepth
   });
   const handoffPath = join(workspaceRoot, "handoffs", project, `${handoff.slug}.md`);
 
@@ -551,6 +554,12 @@ function parseTaskType(value: unknown): HandoffTaskType {
   }
 
   throw new Error("Handoff taskType is invalid.");
+}
+
+function parseExplanationDepth(value: unknown): ExplanationDepth | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === "builder" || value === "developer" || value === "senior") return value;
+  throw new Error("Handoff explanationDepth is invalid.");
 }
 
 async function readGeneratedProjectDocument(

@@ -139,6 +139,16 @@ describe("contained app generator", () => {
       label: "Plain Overview",
       path: "../../reports/runners/plain-overview.md"
     });
+    expect(app.learning.depths.map((depth) => depth.id)).toEqual(["builder", "developer", "senior"]);
+    expect(app.learning.guide.headline).toBe("Start here");
+    expect(app.learning.guide.steps.map((step) => step.targetSection)).toEqual(["overview", "features", "validation"]);
+    expect(app.learning.guide.nextAction.label).toContain("Explore");
+    expect(app.learning.projectExplanation.builder).toContain("plain-language");
+    expect(app.learning.folderExplanations.Assets.builder).toContain("folder");
+    expect(app.learning.fileExplanations["Assets/SEL/Scripts/UI/FieldBagInteractionUI.cs"].senior).toContain("blast radius");
+    expect(app.learning.validationExplanations[0]).toMatchObject({
+      command: "npm test"
+    });
   });
 
   it("uses multi-language script scan data instead of assuming scripts are only C#", () => {
@@ -318,6 +328,52 @@ describe("contained app generator", () => {
     expect(script).toContain("prefillDelegateFromBrowse");
     expect(script).toContain("/api/memory");
     expect(script).toContain("/api/notes");
+  });
+
+  it("renders depth-aware learning controls and explanation panels across the workflow", () => {
+    const html = renderAppHtml("runners");
+    const script = renderAppScript();
+    const styles = renderAppStyles();
+
+    expect(html).toContain('id="learning-depth-select"');
+    expect(html).toContain("Builder");
+    expect(html).toContain("Developer");
+    expect(html).toContain("Senior");
+    expect(html).toContain("What am I seeing?");
+    expect(html).toContain('id="learning-guide"');
+    expect(html).toContain('id="learning-suggested-next"');
+    expect(html).toContain('id="learning-project-explanation"');
+    expect(html).toContain('id="learning-concepts"');
+    expect(html).toContain('id="learning-concept-summary"');
+    expect(html).toContain('id="learning-concept-details"');
+    expect(html).toContain("Explore more when ready");
+    expect(html).toContain('id="document-file-lens"');
+    expect(html).toContain('id="delegate-learning-explainer"');
+    expect(html).toContain('id="validation-learning-explainer"');
+    expect(html).toContain('id="history-learning-explainer"');
+    expect(script).toContain("pronav-learning-depth");
+    expect(script).toContain("renderLearningExplanations");
+    expect(script).toContain("learningDepth");
+    expect(script).toContain("renderLearningGuide");
+    expect(script).toContain("renderConceptSummary");
+    expect(script).toContain("learningNextAction");
+    expect(script).toContain("renderConceptCards");
+    expect(script).toContain("renderFileLens");
+    expect(script).toContain("validationExplanations");
+    expect(styles).toContain(".learning-panel");
+    expect(styles).toContain(".learning-guide");
+    expect(styles).toContain(".learning-step");
+    expect(styles).toContain(".learning-next");
+    expect(styles).toContain(".concept-card");
+  });
+
+  it("keeps sidebar navigation icons and labels on a fixed alignment grid", () => {
+    const styles = renderAppStyles();
+
+    expect(styles).toMatch(/\.nav-button\s*{[^}]*display: grid;[^}]*grid-template-columns: 48px minmax\(0, 1fr\);/s);
+    expect(styles).toMatch(/\.nav-icon\s*{[^}]*width: 40px;[^}]*height: 40px;/s);
+    expect(styles).toMatch(/\.nav-button span\.label\s*{[^}]*min-width: 0;/s);
+    expect(styles).toMatch(/@media \(max-width: 1000px\)[\s\S]*\.nav-button\s*{[^}]*grid-template-columns: 1fr;[^}]*justify-items: center;/);
   });
 
   it("renders a streamlined Codex handoff action for vibe coders", () => {
