@@ -25,6 +25,7 @@
     },
     "files": [
       "dist/**/*",
+      "build/icon.png",
       "package.json",
       "README.md",
       "LICENSE"

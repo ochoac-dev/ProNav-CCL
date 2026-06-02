@@ -4,12 +4,13 @@ import { createDesktopServerOptions, parseDesktopPort } from "../src/desktop/ser
 describe("desktop server options", () => {
   it("uses the OS app data folder as the desktop workspace root", () => {
     const options = createDesktopServerOptions({
-      appPaths: { getPath: () => "/tmp/pronav-user-data" },
+      appPaths: { getPath: () => "/tmp/pronav-user-data", getAppPath: () => "/Applications/ProNav.app/Contents/Resources/app.asar" },
       dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
       port: 0
     });
 
     expect(options.workspaceRoot).toBe("/tmp/pronav-user-data");
+    expect(options.staticAssetRoot).toBe("/Applications/ProNav.app/Contents/Resources/app.asar");
     expect(options.port).toBe(0);
     expect(options.pickFolder).toBeTypeOf("function");
   });

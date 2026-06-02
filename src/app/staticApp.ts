@@ -5,7 +5,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
 
   return [
     "<!doctype html>",
-    '<html lang="en">',
+    '<html lang="en" data-theme="dark">',
     "<head>",
     '  <meta charset="utf-8">',
     '  <meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -16,7 +16,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '  <div class="app-shell">',
     '    <aside class="sidebar" aria-label="Project navigation">',
     '      <div class="brand-block">',
-    '        <div class="brand-mark">P</div>',
+    '        <div class="brand-mark"><img src="/build/icon.png" alt="ProNav app icon"></div>',
     '        <div>',
     '          <h1>ProNav</h1>',
     '          <p>Local AI project command center</p>',
@@ -38,7 +38,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '        <p class="panel-label">Design principle</p>',
     '        <p>Every screen explains what exists, why it matters, and how to hand the next task to an AI coder.</p>',
     "      </div>",
-    '      <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false">Dark mode</button>',
+    '      <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="true">Light mode</button>',
     "    </aside>",
     '    <main class="main-surface">',
     '      <section id="connect" class="view-section active connect-wrap" aria-labelledby="entry-title">',
@@ -98,6 +98,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     "          </div>",
     '          <section class="panel learning-panel">',
     '            <div class="card-header"><div><h3>What am I seeing?</h3><p id="learning-depth-description">Builder-level explanations are shown by default.</p></div></div>',
+    '            <p id="learning-mode-note" class="learning-mode-note">Start with one next step. Open more detail only when it helps.</p>',
     '            <div id="learning-guide" class="learning-guide"></div>',
     '            <div id="learning-project-explanation" class="file-list packet"></div>',
     '            <div id="learning-suggested-next" class="learning-next"></div>',
@@ -146,7 +147,8 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '            <div id="browse-folder-cards" class="vibe-card-grid browse-grid"></div>',
     "          </section>",
     '          <label class="search-field full-search"><span>Search features</span><input id="feature-search" type="search" placeholder="feature, file, keyword, folder"></label>',
-    '          <div class="feature-layout">',
+    '          <div id="feature-empty-state" class="feature-empty-state" hidden></div>',
+    '          <div id="feature-layout" class="feature-layout">',
     '            <div id="feature-cards" class="feature-list"></div>',
     '            <section class="panel feature-detail">',
     '              <div class="card-header"><div><h3 id="feature-detail-title">Select a feature</h3><p id="feature-detail-description" class="muted"></p></div></div>',
@@ -388,10 +390,15 @@ p { line-height: 1.5; }
   background: linear-gradient(135deg, #315efb, #7a5af8);
   display: grid;
   place-items: center;
-  color: #ffffff;
-  font-weight: 800;
-  letter-spacing: 0;
+  overflow: hidden;
   box-shadow: 0 14px 30px rgba(49, 94, 251, 0.22);
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .eyebrow,
@@ -679,6 +686,13 @@ button,
   display: grid;
   gap: 10px;
   padding: 0 18px 12px;
+}
+
+.learning-mode-note {
+  margin: 0;
+  padding: 14px 18px 4px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .learning-guide-header h4 {
@@ -1189,6 +1203,16 @@ button,
   gap: 10px;
 }
 
+.feature-empty-state {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+  color: var(--muted);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
 .feature-card,
 .document-card {
   width: 100%;
@@ -1515,10 +1539,10 @@ function readStoredTheme() {
     const saved = localStorage.getItem("pronav-theme");
     if (saved === "dark" || saved === "light") return saved;
   } catch {
-    return "light";
+    return "dark";
   }
 
-  return "light";
+  return "dark";
 }
 
 function applyTheme(theme) {
@@ -1674,13 +1698,24 @@ function renderLearningExplanations() {
   const help = document.getElementById("learning-depth-help");
   if (help) help.textContent = option?.description ?? "Builder keeps explanations plain and practical.";
   const description = document.getElementById("learning-depth-description");
-  if (description) description.textContent = (option?.label ?? learningDepthLabel()) + "-level view. Switch depth when you want more or less detail.";
+  if (description) {
+    description.textContent =
+      learningDepth === "builder"
+        ? "Builder-level view. Start with one guided next step; deeper details stay tucked away."
+        : (option?.label ?? learningDepthLabel()) + "-level view. Switch depth when you want more or less detail.";
+  }
+  const modeNote = document.getElementById("learning-mode-note");
+  if (modeNote) modeNote.textContent = learningModeNoteText();
   const project = document.getElementById("learning-project-explanation");
   if (project) {
-    project.innerHTML = [
-      fileRow(appData.learning.projectExplanation?.[learningDepth] ?? "No project explanation is available yet."),
-      fileRow("Current depth: " + learningDepthLabel())
-    ].join("");
+    const rows =
+      learningDepth === "builder"
+        ? [fileRow(appData.learning.projectExplanation?.builder ?? "No project explanation is available yet.")]
+        : [
+            fileRow(appData.learning.projectExplanation?.[learningDepth] ?? "No project explanation is available yet."),
+            fileRow("Current depth: " + learningDepthLabel())
+          ];
+    project.innerHTML = rows.join("");
   }
   renderLearningGuide();
   renderConceptSummary();
@@ -1688,6 +1723,16 @@ function renderLearningExplanations() {
   renderDelegateLearningExplainer();
   renderValidationLearningExplainer();
   renderHistoryLearningExplainer();
+}
+
+function learningModeNoteText() {
+  if (learningDepth === "developer") {
+    return "Developer mode adds code organization and implementation clues for the area you are inspecting.";
+  }
+  if (learningDepth === "senior") {
+    return "Senior mode keeps the focus on architecture, ownership, validation gaps, and likely blast radius.";
+  }
+  return "Builder mode shows the smallest useful explanation first, then suggests what to open next.";
 }
 
 function renderLearningGuide() {
@@ -1735,7 +1780,7 @@ function renderConceptSummary() {
     box.innerHTML = '<div class="learning-concept-row"><strong>Concepts to notice</strong><p>No strong code concepts were detected yet. Start with the project and folder explanations first.</p></div>';
     return;
   }
-  const limit = learningDepth === "builder" ? 2 : 3;
+  const limit = learningDepth === "builder" ? 1 : 3;
   box.innerHTML = concepts.slice(0, limit).map((concept) => {
     return '<div class="learning-concept-row"><strong>' + escapeHtml(concept.label) + '</strong><p>' + escapeHtml(concept[learningDepth] || concept.description) + "</p></div>";
   }).join("");
@@ -1853,6 +1898,19 @@ function renderFriendlyProject() {
 
 function renderFeatureCards() {
   const query = document.getElementById("feature-search").value.trim().toLowerCase();
+  const featureLayout = document.getElementById("feature-layout");
+  const emptyState = document.getElementById("feature-empty-state");
+  const hasFeatureMatches = appData.features.some((feature) => feature.files.length > 0 || feature.highSignalFiles > 0 || feature.totalCandidates > 0);
+  if (!hasFeatureMatches) {
+    if (featureLayout) featureLayout.hidden = true;
+    if (emptyState) {
+      emptyState.hidden = false;
+      emptyState.textContent = "No high-signal feature matches yet. Start with the Folder Guide above, choose one folder, then use Delegate to ask for a focused explanation.";
+    }
+    return;
+  }
+  if (featureLayout) featureLayout.hidden = false;
+  if (emptyState) emptyState.hidden = true;
   const features = appData.features.filter((feature) => {
     const haystack = [feature.title, feature.description, ...feature.files.map((file) => file.path + " " + file.matchedKeywords.join(" "))].join(" ").toLowerCase();
     return haystack.includes(query);

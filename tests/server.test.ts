@@ -114,6 +114,20 @@ describe("local app server", () => {
     expect(body.canceled).toBe(true);
   });
 
+  it("serves the packaged app icon as a png image from the static asset root", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-workspace-"));
+    const staticAssetRoot = await mkdtemp(join(tmpdir(), "pronav-server-assets-"));
+    mkdirSync(join(staticAssetRoot, "build"), { recursive: true });
+    writeFileSync(join(staticAssetRoot, "build", "icon.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    const server = await startLocalServer({ port: 0, workspaceRoot, staticAssetRoot });
+    servers.push(server);
+
+    const response = await fetch(`${server.url}/build/icon.png`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/png");
+  });
+
   it("serves bounded document previews for generated projects", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-workspace-"));
     const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-docs-"));

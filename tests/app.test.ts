@@ -315,10 +315,12 @@ describe("contained app generator", () => {
 
     expect(html).toContain("Browse Project");
     expect(html).toContain('id="browse-folder-cards"');
+    expect(html).toContain('id="feature-empty-state"');
     expect(html).toContain('id="memory-timeline"');
     expect(html).toContain('id="memory-note-form"');
     expect(html).toContain("Remember this about the project");
     expect(script).toContain("renderBrowseProject");
+    expect(script).toContain("No high-signal feature matches yet");
     expect(script).toContain("loadProjectMemory");
     expect(script).toContain("submitMemoryNote");
     expect(script).toContain("renderMemorySummary");
@@ -342,6 +344,7 @@ describe("contained app generator", () => {
     expect(html).toContain("What am I seeing?");
     expect(html).toContain('id="learning-guide"');
     expect(html).toContain('id="learning-suggested-next"');
+    expect(html).toContain('id="learning-mode-note"');
     expect(html).toContain('id="learning-project-explanation"');
     expect(html).toContain('id="learning-concepts"');
     expect(html).toContain('id="learning-concept-summary"');
@@ -357,6 +360,8 @@ describe("contained app generator", () => {
     expect(script).toContain("renderLearningGuide");
     expect(script).toContain("renderConceptSummary");
     expect(script).toContain("learningNextAction");
+    expect(script).toContain('Builder-level view. Start with one guided next step; deeper details stay tucked away.');
+    expect(script).toContain('const limit = learningDepth === "builder" ? 1 : 3;');
     expect(script).toContain("renderConceptCards");
     expect(script).toContain("renderFileLens");
     expect(script).toContain("validationExplanations");
@@ -374,6 +379,15 @@ describe("contained app generator", () => {
     expect(styles).toMatch(/\.nav-icon\s*{[^}]*width: 40px;[^}]*height: 40px;/s);
     expect(styles).toMatch(/\.nav-button span\.label\s*{[^}]*min-width: 0;/s);
     expect(styles).toMatch(/@media \(max-width: 1000px\)[\s\S]*\.nav-button\s*{[^}]*grid-template-columns: 1fr;[^}]*justify-items: center;/);
+  });
+
+  it("uses the packaged app icon in the sidebar brand mark", () => {
+    const html = renderAppHtml("runners");
+    const styles = renderAppStyles();
+
+    expect(html).toContain('<img src="/build/icon.png" alt="ProNav app icon"');
+    expect(html).not.toContain('<div class="brand-mark">P</div>');
+    expect(styles).toMatch(/\.brand-mark img\s*{[^}]*width: 100%;[^}]*height: 100%;[^}]*object-fit: cover;/s);
   });
 
   it("renders a streamlined Codex handoff action for vibe coders", () => {
@@ -414,5 +428,6 @@ describe("contained app generator", () => {
     expect(styles).toContain(".big-explain");
     expect(script).toContain("applyTheme");
     expect(script).toContain("pronav-theme");
+    expect(script).toMatch(/function readStoredTheme\(\)[\s\S]*return "dark";/);
   });
 });

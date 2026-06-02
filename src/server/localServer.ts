@@ -26,6 +26,7 @@ import { collectScan } from "../scanners/index.js";
 export interface LocalServerOptions {
   port?: number;
   workspaceRoot?: string;
+  staticAssetRoot?: string;
   pickFolder?: FolderPicker;
   codexRunner?: CodexRunner;
 }
@@ -47,10 +48,11 @@ const VALIDATION_OUTPUT_LIMIT = 80_000;
 
 export async function startLocalServer(options: LocalServerOptions = {}): Promise<LocalServerHandle> {
   const workspaceRoot = resolve(options.workspaceRoot ?? process.cwd());
+  const staticAssetRoot = resolve(options.staticAssetRoot ?? workspaceRoot);
   const pickFolder = options.pickFolder ?? chooseLocalFolder;
   const codexRunner = options.codexRunner ?? runCodexCli;
   const server = createServer((request, response) => {
-    void handleRequest(request, response, workspaceRoot, pickFolder, codexRunner);
+    void handleRequest(request, response, workspaceRoot, staticAssetRoot, pickFolder, codexRunner);
   });
 
   await new Promise<void>((resolveListen, reject) => {
@@ -81,6 +83,7 @@ async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
   workspaceRoot: string,
+  staticAssetRoot: string,
   pickFolder: FolderPicker,
   codexRunner: CodexRunner
 ): Promise<void> {
@@ -195,6 +198,14 @@ async function handleRequest(
 
     if (request.method === "POST" && url.pathname === "/api/notes") {
       sendJson(response, 200, await addNoteFromRequest(workspaceRoot, await readJsonBody(request)));
+      return;
+    }
+
+    if (
+      request.method === "GET" &&
+      url.pathname === "/build/icon.png"
+    ) {
+      await serveWorkspaceFile(response, staticAssetRoot, url.pathname);
       return;
     }
 
@@ -681,6 +692,8 @@ function contentType(path: string): string {
       return "application/json; charset=utf-8";
     case ".md":
       return "text/markdown; charset=utf-8";
+    case ".png":
+      return "image/png";
     default:
       return "text/plain; charset=utf-8";
   }

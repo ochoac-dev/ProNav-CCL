@@ -2,6 +2,7 @@ import type { LocalServerOptions } from "../server/localServer.js";
 import { createDesktopFolderPicker, type DesktopDialog } from "./folderPicker.js";
 
 export interface DesktopAppPaths {
+  getAppPath(): string;
   getPath(name: "userData"): string;
 }
 
@@ -15,6 +16,7 @@ export function createDesktopServerOptions(input: CreateDesktopServerOptionsInpu
   return {
     port: input.port ?? parseDesktopPort(),
     workspaceRoot: input.appPaths.getPath("userData"),
+    staticAssetRoot: input.appPaths.getAppPath(),
     pickFolder: createDesktopFolderPicker(input.dialog)
   };
 }
