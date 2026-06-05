@@ -30,20 +30,26 @@ ProNav is meant to give vibe coders and non-technical builders a safer loop befo
 3. **Read the project map first**
    Start on **Understand** and **Browse**. Look for what the project is, where screen/app behavior lives, which files are backend or database related, and which paths are protected.
 
-4. **Create a small AI task**
+4. **Build trusted project context**
+   Use **Project Brain** to draft notes about important folders, decisions, constraints, risks, and open questions. Drafts are not trusted automatically. Switch to Senior explanation depth to edit, approve, pin, or deprecate entries before they are used in AI handoffs.
+
+5. **Create a small AI task**
    Go to **Delegate**, choose the coding app, pick a task type, add an optional folder or file scope, and describe one clear goal in normal language. Smaller tasks are easier to review and validate.
 
-5. **Use Codex carefully**
+6. **Review Project Brain context**
+   Delegate shows which approved Project Brain entries match the task. Remove anything that does not apply before generating the handoff packet.
+
+7. **Use Codex carefully**
    If you choose **Codex**, generate the handoff packet first. Click **Run in Codex** only after reviewing the confirmation panel. Codex may edit files in the selected repo, so check the repo path, handoff path, and suggested validation command before pressing **Start Codex**.
 
-6. **Review what changed**
+8. **Review what changed**
    After a Codex run, use the review panel and History to inspect the transcript and changed-file list. Do not trust the result only because the tool finished.
 
-7. **Run validation before shipping**
+9. **Run validation before shipping**
    Open **Validate** and run the recommended checks. If validation fails, use the output and changed-file list to create a follow-up handoff instead of guessing.
 
-8. **Keep useful notes**
-   Add project notes in **History** for decisions, warnings, setup facts, or things future AI tasks should know.
+10. **Keep useful notes**
+   Add project notes in **History** for quick reminders, and use **Project Brain** for reviewed context that future AI tasks should trust.
 
 ## Codex Setup
 
@@ -110,9 +116,11 @@ From the browser UI, a user can:
 - Run configured validation checks from inside the app.
 - Read plain-English explanations of what each validation check catches.
 - Expand a validation output dropdown only when they want to inspect stdout and stderr.
-- Keep local project memory for scan history, validation results, handoffs, and user notes.
+- Keep local project memory for scan history, validation results, handoffs, Codex runs, user notes, and reviewed Project Brain entries.
+- Draft Project Brain entries on demand for module cards, decisions, constraints/risks, and open questions.
+- Approve or pin Project Brain entries from Senior explanation depth before they are treated as trusted context.
 - Compare recent scans so users can see what changed since the last scan.
-- Include saved notes, scan changes, and validation history in future AI handoff packets.
+- Include approved Project Brain context, saved notes, scan changes, and validation history in future AI handoff packets.
 
 The current scanner supports:
 
@@ -135,6 +143,7 @@ It does not:
 - Execute Supabase SQL.
 - Call an external AI API.
 - Upload project files to a cloud service.
+- Treat auto-generated draft context as truth before a user reviews it.
 - Replace a developer, reviewer, or test suite.
 
 The goal is to help users understand, delegate, and validate work more safely.
@@ -178,8 +187,8 @@ The direction is:
 4. **Deeper AI handoff support**
    Improve task packets for Codex, Claude Code, Cursor, and other local coding tools so each task has clear scope, relevant files, constraints, and proof-of-work checks.
 
-5. **Project memory**
-   Let ProNav remember prior scans, project decisions, generated handoffs, validation results, and important notes across sessions.
+5. **Project Brain**
+   Let ProNav remember prior scans, project decisions, generated handoffs, validation results, important notes, and human-approved context across sessions.
 
 6. **Safer agent workflows**
    Eventually connect more directly to coding tools while keeping the user in control of scope, validation, and review.
@@ -195,6 +204,7 @@ ProNav is built around a few rules:
 - **Read-only by default:** Scanning should not modify the selected repo.
 - **Plain English first:** Non-coders should understand the project before seeing raw technical maps.
 - **Bounded delegation:** AI tasks should include scope, constraints, relevant files, and validation.
+- **Reviewed context over guesses:** Draft explanations can help users start, but approved Project Brain entries are the trusted source for future handoffs.
 - **Validation matters:** A task is not done just because code changed. The user needs proof.
 - **No hidden magic:** Generated reports, profiles, app data, and handoffs should be visible files.
 

@@ -4,17 +4,25 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { basename, extname, join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
+import type { ProNavAppData } from "../app/appData.js";
 import { renderAppHtml, renderAppScript, renderAppStyles } from "../app/staticApp.js";
 import { defaultCodexCommand, runCodexCli, type CodexRunner, type CodexRunResult } from "../codex/codexRunner.js";
 import { buildHandoff, type HandoffAgent, type HandoffTaskType } from "../handoffs/handoff.js";
 import type { ExplanationDepth } from "../app/explanationData.js";
 import {
   addProjectNote,
+  addOrUpdateProjectBrainEntry,
   appendCodexRunMemory,
   appendHandoffMemory,
   appendScanMemory,
   appendValidationMemory,
+  draftProjectBrainEntry,
   readProjectMemory,
+  updateProjectBrainStatus,
+  type ProjectBrainEntryInput,
+  type ProjectBrainKind,
+  type ProjectBrainSource,
+  type ProjectBrainStatusAction,
   withProjectMemorySummary
 } from "../memory/projectMemory.js";
 import { loadProfile } from "../profile.js";
@@ -186,6 +194,21 @@ async function handleRequest(
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/brain/draft") {
+      sendJson(response, 200, await createBrainDraftFromRequest(workspaceRoot, await readJsonBody(request)));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/brain/entry") {
+      sendJson(response, 200, await upsertBrainEntryFromRequest(workspaceRoot, await readJsonBody(request)));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/brain/status") {
+      sendJson(response, 200, await updateBrainStatusFromRequest(workspaceRoot, await readJsonBody(request)));
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/validate") {
       sendJson(response, 200, await runValidationFromRequest(workspaceRoot, await readJsonBody(request)));
       return;
@@ -257,6 +280,7 @@ async function createHandoffFromRequest(
   markdown: string;
   prompt: string;
   relevantFiles: string[];
+  projectBrainEntries: unknown[];
 }> {
   const project = requireProjectSlug(body.project);
   const agent = parseAgent(body.agent);
@@ -264,6 +288,7 @@ async function createHandoffFromRequest(
   const explanationDepth = parseExplanationDepth(body.explanationDepth);
   const goal = typeof body.goal === "string" ? body.goal : "";
   const scope = typeof body.scope === "string" ? body.scope : undefined;
+  const excludedBrainEntryIds = parseStringList(body.excludedBrainEntryIds);
   const profile = loadProfile(join(workspaceRoot, "project_profiles", "generated", `${project}.yml`));
   const scan = await collectScan(profile);
   const memory = await readProjectMemory(workspaceRoot, project);
@@ -273,7 +298,8 @@ async function createHandoffFromRequest(
     goal,
     scope,
     memory,
-    explanationDepth
+    explanationDepth,
+    excludedBrainEntryIds
   });
   const handoffPath = join(workspaceRoot, "handoffs", project, `${handoff.slug}.md`);
 
@@ -294,8 +320,139 @@ async function createHandoffFromRequest(
     path: `/handoffs/${project}/${handoff.slug}.md`,
     markdown: handoff.markdown,
     prompt: handoff.prompt,
-    relevantFiles: handoff.relevantFiles
+    relevantFiles: handoff.relevantFiles,
+    projectBrainEntries: handoff.projectBrainEntries
   };
+}
+
+async function createBrainDraftFromRequest(workspaceRoot: string, body: Record<string, unknown>) {
+  const project = requireProjectSlug(body.project);
+  const appData = await readGeneratedAppData(workspaceRoot, project);
+  const memory = await readProjectMemory(workspaceRoot, project);
+  const input = buildBrainDraftInput(
+    appData,
+    memory,
+    parseProjectBrainKind(body.kind),
+    typeof body.scope === "string" ? body.scope.trim() : "",
+    typeof body.title === "string" ? body.title.trim() : ""
+  );
+  await draftProjectBrainEntry(workspaceRoot, project, input);
+  return withProjectMemorySummary(await readProjectMemory(workspaceRoot, project));
+}
+
+async function upsertBrainEntryFromRequest(workspaceRoot: string, body: Record<string, unknown>) {
+  const project = requireProjectSlug(body.project);
+  await addOrUpdateProjectBrainEntry(workspaceRoot, project, {
+    id: typeof body.id === "string" && body.id.trim() ? body.id.trim() : undefined,
+    kind: parseProjectBrainKind(body.kind),
+    title: typeof body.title === "string" ? body.title : "",
+    body: typeof body.body === "string" ? body.body : "",
+    scope: typeof body.scope === "string" ? body.scope : null,
+    paths: parseStringList(body.paths),
+    conceptIds: parseStringList(body.conceptIds),
+    source: parseProjectBrainSource(body.source)
+  });
+  return withProjectMemorySummary(await readProjectMemory(workspaceRoot, project));
+}
+
+async function updateBrainStatusFromRequest(workspaceRoot: string, body: Record<string, unknown>) {
+  const project = requireProjectSlug(body.project);
+  const id = typeof body.id === "string" ? body.id.trim() : "";
+  if (!id) throw new Error("Project Brain entry id is required.");
+  await updateProjectBrainStatus(workspaceRoot, project, {
+    id,
+    action: parseProjectBrainStatusAction(body.action)
+  });
+  return withProjectMemorySummary(await readProjectMemory(workspaceRoot, project));
+}
+
+async function readGeneratedAppData(workspaceRoot: string, project: string): Promise<ProNavAppData> {
+  return JSON.parse(await readFile(join(workspaceRoot, "app", project, "data.json"), "utf8")) as ProNavAppData;
+}
+
+function buildBrainDraftInput(
+  appData: ProNavAppData,
+  memory: Awaited<ReturnType<typeof readProjectMemory>>,
+  kind: ProjectBrainKind,
+  scope: string,
+  titleOverride: string
+): ProjectBrainEntryInput {
+  const paths = collectBrainDraftPaths(appData, scope);
+  const conceptIds = unique(paths.flatMap((path) => appData.learning.fileExplanations[path]?.conceptIds ?? []));
+  const label = scope || appData.project.name;
+  const folderExplanation = scope ? appData.learning.folderExplanations[scope]?.developer : "";
+  const fileLens = paths[0] ? appData.learning.fileExplanations[paths[0]]?.developer : "";
+  const summary = summarizeBrainDraftMemory(memory);
+  const title = titleOverride || defaultBrainDraftTitle(kind, label);
+  const body = defaultBrainDraftBody(kind, label, {
+    folderExplanation,
+    fileLens,
+    paths,
+    conceptIds,
+    summary
+  });
+
+  return {
+    kind,
+    title,
+    body,
+    scope: scope || null,
+    paths,
+    conceptIds,
+    source: "scan-draft"
+  };
+}
+
+function collectBrainDraftPaths(appData: ProNavAppData, scope: string): string[] {
+  const candidates = unique([
+    ...appData.features.flatMap((feature) => feature.files.map((file) => file.path)),
+    ...appData.generic.sampleFiles,
+    ...appData.documents.files.map((file) => file.path)
+  ]);
+  const scoped = scope ? candidates.filter((path) => pathMatches(path, scope)) : candidates;
+  return (scoped.length > 0 ? scoped : candidates).slice(0, 8);
+}
+
+function defaultBrainDraftTitle(kind: ProjectBrainKind, label: string): string {
+  switch (kind) {
+    case "module-card":
+      return `Module card draft for ${label}`;
+    case "decision":
+      return `Decision draft for ${label}`;
+    case "constraint-risk":
+      return `Constraint or risk draft for ${label}`;
+    case "open-question":
+      return `Open question draft for ${label}`;
+  }
+}
+
+function defaultBrainDraftBody(
+  kind: ProjectBrainKind,
+  label: string,
+  context: { folderExplanation?: string; fileLens?: string; paths: string[]; conceptIds: string[]; summary: string }
+): string {
+  const paths = context.paths.length ? `Relevant paths: ${context.paths.join(", ")}.` : "No narrow paths were found yet.";
+  const concepts = context.conceptIds.length ? `Detected concepts: ${context.conceptIds.join(", ")}.` : "No strong concepts were detected yet.";
+  const evidence = [context.folderExplanation, context.fileLens, paths, concepts, context.summary].filter(Boolean).join(" ");
+
+  switch (kind) {
+    case "module-card":
+      return `Draft module context for ${label}. ${evidence}`;
+    case "decision":
+      return `Draft decision context for ${label}. Review whether this should become a trusted project rule. ${evidence}`;
+    case "constraint-risk":
+      return `Draft constraint or risk for ${label}. Review what a future AI agent should avoid or validate. ${evidence}`;
+    case "open-question":
+      return `Draft open question for ${label}. Resolve this before treating related implementation assumptions as fact. ${evidence}`;
+  }
+}
+
+function summarizeBrainDraftMemory(memory: Awaited<ReturnType<typeof readProjectMemory>>): string {
+  return [
+    `Recent notes: ${memory.notes.slice(0, 2).map((note) => note.text).join(" | ") || "none"}.`,
+    `Recent handoffs: ${memory.handoffs.slice(0, 2).map((handoff) => handoff.goal).join(" | ") || "none"}.`,
+    `Recent validations: ${memory.validations.slice(0, 2).map((validation) => `${validation.command} exit ${validation.exitCode}`).join(" | ") || "none"}.`
+  ].join(" ");
 }
 
 async function runValidationFromRequest(
@@ -531,6 +688,16 @@ function outputText(value: unknown): string {
   return "";
 }
 
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function pathMatches(left: string, right: string): boolean {
+  const a = left.toLowerCase();
+  const b = right.toLowerCase();
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`) || a.includes(b) || b.includes(a);
+}
+
 function truncateValidationOutput(value: string): string {
   if (value.length <= VALIDATION_OUTPUT_LIMIT) return value;
   return `${value.slice(0, VALIDATION_OUTPUT_LIMIT)}\n[Output truncated after ${VALIDATION_OUTPUT_LIMIT} characters]`;
@@ -571,6 +738,28 @@ function parseExplanationDepth(value: unknown): ExplanationDepth | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   if (value === "builder" || value === "developer" || value === "senior") return value;
   throw new Error("Handoff explanationDepth is invalid.");
+}
+
+function parseProjectBrainKind(value: unknown): ProjectBrainKind {
+  if (value === "module-card" || value === "decision" || value === "constraint-risk" || value === "open-question") return value;
+  throw new Error("Project Brain kind is invalid.");
+}
+
+function parseProjectBrainSource(value: unknown): ProjectBrainSource {
+  if (value === undefined || value === null || value === "") return "user";
+  if (value === "user" || value === "scan-draft" || value === "handoff" || value === "codex-run") return value;
+  throw new Error("Project Brain source is invalid.");
+}
+
+function parseProjectBrainStatusAction(value: unknown): ProjectBrainStatusAction {
+  if (value === "approve" || value === "pin" || value === "unpin" || value === "deprecate") return value;
+  throw new Error("Project Brain status action is invalid.");
+}
+
+function parseStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 40)
+    : [];
 }
 
 async function readGeneratedProjectDocument(

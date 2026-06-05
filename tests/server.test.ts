@@ -202,6 +202,113 @@ describe("local app server", () => {
     expect(existsSync(join(repoRoot, "handoffs"))).toBe(false);
   });
 
+  it("creates and promotes Project Brain entries for reviewed handoff context", async () => {
+    const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-brain-"));
+    const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-brain-repo-"));
+    mkdirSync(join(repoRoot, "src"), { recursive: true });
+    writeFileSync(join(repoRoot, "package.json"), JSON.stringify({ name: "brain-server-fixture" }));
+    writeFileSync(join(repoRoot, "src", "index.ts"), "const screens = new Map();\nexport const app = screens;\n");
+
+    const server = await startLocalServer({ port: 0, workspaceRoot });
+    servers.push(server);
+
+    await fetch(`${server.url}/api/scan`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ repoPath: repoRoot, name: "Brain Server Fixture" })
+    });
+
+    const draftResponse = await fetch(`${server.url}/api/brain/draft`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: "brain-server-fixture", kind: "module-card", scope: "src" })
+    });
+    const draftBody = (await draftResponse.json()) as {
+      projectBrain: Array<{ id: string; kind: string; status: string; source: string; title: string; scope: string; paths: string[] }>;
+    };
+    const draft = draftBody.projectBrain[0];
+
+    expect(draftResponse.status).toBe(200);
+    expect(draft).toMatchObject({
+      kind: "module-card",
+      status: "draft",
+      source: "scan-draft",
+      scope: "src"
+    });
+    expect(draft.paths).toContain("src/index.ts");
+
+    const editResponse = await fetch(`${server.url}/api/brain/entry`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "brain-server-fixture",
+        id: draft.id,
+        kind: "module-card",
+        title: "Source owns app behavior",
+        body: "The source folder owns visible app behavior and should be validated with npm test.",
+        scope: "src",
+        paths: ["src/index.ts"],
+        conceptIds: ["map-dictionary"],
+        source: "user"
+      })
+    });
+    const editedBody = (await editResponse.json()) as { projectBrain: Array<{ id: string; title: string; source: string }> };
+    expect(editResponse.status).toBe(200);
+    expect(editedBody.projectBrain[0]).toMatchObject({ id: draft.id, title: "Source owns app behavior", source: "user" });
+
+    const approveResponse = await fetch(`${server.url}/api/brain/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: "brain-server-fixture", id: draft.id, action: "approve" })
+    });
+    expect(approveResponse.status).toBe(200);
+
+    const pinResponse = await fetch(`${server.url}/api/brain/status`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: "brain-server-fixture", id: draft.id, action: "pin" })
+    });
+    const pinnedBody = (await pinResponse.json()) as {
+      projectBrain: Array<{ status: string }>;
+      summary: { projectBrainCounts: { pinned: number } };
+    };
+    expect(pinResponse.status).toBe(200);
+    expect(pinnedBody.projectBrain[0].status).toBe("pinned");
+    expect(pinnedBody.summary.projectBrainCounts.pinned).toBe(1);
+
+    const handoffResponse = await fetch(`${server.url}/api/handoff`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "brain-server-fixture",
+        agent: "codex",
+        taskType: "fix-bug",
+        goal: "Fix source behavior.",
+        scope: "src"
+      })
+    });
+    const handoffBody = (await handoffResponse.json()) as { markdown: string };
+    expect(handoffResponse.status).toBe(200);
+    expect(handoffBody.markdown).toContain("## Human-Approved Project Brain");
+    expect(handoffBody.markdown).toContain("Source owns app behavior");
+
+    const removedResponse = await fetch(`${server.url}/api/handoff`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: "brain-server-fixture",
+        agent: "codex",
+        taskType: "fix-bug",
+        goal: "Fix source behavior without brain.",
+        scope: "src",
+        excludedBrainEntryIds: [draft.id]
+      })
+    });
+    const removedBody = (await removedResponse.json()) as { markdown: string };
+    expect(removedResponse.status).toBe(200);
+    expect(removedBody.markdown).not.toContain("Source owns app behavior");
+  });
+
   it("runs a configured validation command and returns output without accepting arbitrary commands", async () => {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "pronav-server-workspace-"));
     const repoRoot = await mkdtemp(join(tmpdir(), "pronav-server-validation-"));

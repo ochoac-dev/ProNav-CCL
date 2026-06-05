@@ -390,6 +390,22 @@ describe("contained app generator", () => {
     expect(styles).toMatch(/\.brand-mark img\s*{[^}]*width: 100%;[^}]*height: 100%;[^}]*object-fit: cover;/s);
   });
 
+  it("renders Project Brain navigation, review surfaces, and handoff preview hooks", () => {
+    const html = renderAppHtml("runners");
+    const script = renderAppScript();
+
+    expect(html).toContain('data-section="brain"');
+    expect(html).toContain("Project Brain");
+    expect(html).toContain('id="project-brain-list"');
+    expect(html).toContain('id="project-brain-form"');
+    expect(html).toContain('id="handoff-brain-preview"');
+    expect(html).toContain("Draft Project Brain entry");
+    expect(script).toContain("renderProjectBrain");
+    expect(script).toContain("submitBrainDraft");
+    expect(script).toContain("Senior mode unlocks");
+    expect(script).toContain("excludedBrainEntryIds");
+  });
+
   it("renders a streamlined Codex handoff action for vibe coders", () => {
     const html = renderAppHtml("runners");
     const script = renderAppScript();

@@ -1,7 +1,7 @@
 import type { ScanResult } from "../types.js";
 import { slugify } from "../app/appData.js";
 import { buildLearningData, type AppLearningData, type ExplanationDepth } from "../app/explanationData.js";
-import { summarizeProjectMemory, type ProjectMemory } from "../memory/projectMemory.js";
+import { summarizeProjectMemory, type ProjectBrainEntry, type ProjectMemory } from "../memory/projectMemory.js";
 
 export type HandoffAgent = "codex" | "claude" | "cursor" | "copy";
 
@@ -14,6 +14,7 @@ export interface HandoffRequest {
   scope?: string;
   memory?: ProjectMemory;
   explanationDepth?: ExplanationDepth;
+  excludedBrainEntryIds?: string[];
 }
 
 export interface HandoffResult {
@@ -25,6 +26,7 @@ export interface HandoffResult {
   relevantFiles: string[];
   prompt: string;
   markdown: string;
+  projectBrainEntries: ProjectBrainEntry[];
 }
 
 export function buildHandoff(scan: ScanResult, request: HandoffRequest): HandoffResult {
@@ -36,6 +38,13 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
   const taskLabel = taskTypeLabel(request.taskType);
   const learning = buildLearningData(scan);
   const explanationDepth = request.explanationDepth ?? null;
+  const projectBrainEntries = selectProjectBrainEntries(
+    request.memory,
+    learning,
+    relevantFiles,
+    scope,
+    request.excludedBrainEntryIds ?? []
+  );
   const explanationLine = explanationDepth
     ? `Use ${depthLabel(explanationDepth)}-level explanations when explaining code, tradeoffs, and validation.`
     : "";
@@ -61,6 +70,7 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
     scope,
     relevantFiles,
     prompt,
+    projectBrainEntries,
     markdown: renderHandoffMarkdown(scan, {
       agentLabel,
       taskLabel,
@@ -70,7 +80,8 @@ export function buildHandoff(scan: ScanResult, request: HandoffRequest): Handoff
       prompt,
       memory: request.memory,
       learning,
-      explanationDepth
+      explanationDepth,
+      projectBrainEntries
     })
   };
 }
@@ -87,6 +98,7 @@ function renderHandoffMarkdown(
     memory?: ProjectMemory;
     learning: AppLearningData;
     explanationDepth: ExplanationDepth | null;
+    projectBrainEntries: ProjectBrainEntry[];
   }
 ): string {
   return [
@@ -124,6 +136,7 @@ function renderHandoffMarkdown(
     "",
     ...bulletList(scan.documents.files.slice(0, 10).map((file) => file.path), "No documents detected."),
     ...renderExplanationContext(context.learning, context.explanationDepth, context.relevantFiles),
+    ...renderProjectBrainSection(context.projectBrainEntries),
     ...renderMemorySection(context.memory),
     "",
     "## Validation Checks",
@@ -141,6 +154,82 @@ function renderHandoffMarkdown(
     context.prompt,
     "```"
   ].join("\n");
+}
+
+export function selectProjectBrainEntries(
+  memory: ProjectMemory | undefined,
+  learning: AppLearningData,
+  relevantFiles: string[],
+  scope: string | null,
+  excludedBrainEntryIds: string[] = []
+): ProjectBrainEntry[] {
+  if (!memory?.projectBrain?.length) return [];
+
+  const excluded = new Set(excludedBrainEntryIds);
+  const relevant = new Set(relevantFiles);
+  const relevantConcepts = new Set(
+    relevantFiles.flatMap((file) => learning.fileExplanations[file]?.conceptIds ?? [])
+  );
+
+  return memory.projectBrain
+    .filter((entry) => (entry.status === "approved" || entry.status === "pinned") && !excluded.has(entry.id))
+    .filter((entry) => brainEntryMatches(entry, scope, relevant, relevantConcepts))
+    .sort((a, b) => brainStatusWeight(b.status) - brainStatusWeight(a.status) || b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, 8);
+}
+
+function renderProjectBrainSection(entries: ProjectBrainEntry[]): string[] {
+  if (entries.length === 0) return [];
+
+  return [
+    "",
+    "## Human-Approved Project Brain",
+    "",
+    ...plainBulletList(entries.map(renderProjectBrainEntry), "No approved Project Brain entries matched this handoff.")
+  ];
+}
+
+function renderProjectBrainEntry(entry: ProjectBrainEntry): string {
+  const scope = entry.scope ? ` Scope: ${entry.scope}.` : "";
+  const paths = entry.paths.length ? ` Paths: ${entry.paths.slice(0, 4).join(", ")}.` : "";
+  return `${projectBrainKindLabel(entry.kind)} | ${entry.status}: ${entry.title}. ${entry.body}${scope}${paths}`;
+}
+
+function brainEntryMatches(
+  entry: ProjectBrainEntry,
+  scope: string | null,
+  relevantFiles: Set<string>,
+  relevantConcepts: Set<string>
+): boolean {
+  if (!entry.scope && entry.paths.length === 0 && entry.conceptIds.length === 0) return true;
+  if (entry.scope && scope && pathMatches(entry.scope, scope)) return true;
+  if (entry.scope && [...relevantFiles].some((file) => pathMatches(file, entry.scope ?? ""))) return true;
+  if (entry.paths.some((path) => (scope && pathMatches(path, scope)) || relevantFiles.has(path))) return true;
+  if (entry.conceptIds.some((id) => relevantConcepts.has(id))) return true;
+  return false;
+}
+
+function pathMatches(left: string, right: string): boolean {
+  const a = left.toLowerCase();
+  const b = right.toLowerCase();
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`) || a.includes(b) || b.includes(a);
+}
+
+function brainStatusWeight(status: ProjectBrainEntry["status"]): number {
+  return status === "pinned" ? 2 : status === "approved" ? 1 : 0;
+}
+
+function projectBrainKindLabel(kind: ProjectBrainEntry["kind"]): string {
+  switch (kind) {
+    case "module-card":
+      return "Module Card";
+    case "decision":
+      return "Decision";
+    case "constraint-risk":
+      return "Constraint/Risk";
+    case "open-question":
+      return "Open Question";
+  }
 }
 
 function renderExplanationContext(
@@ -238,7 +327,11 @@ function renderMemorySection(memory: ProjectMemory | undefined): string[] {
   if (!memory) return [];
 
   const hasMemory =
-    memory.scans.length > 0 || memory.validations.length > 0 || memory.handoffs.length > 0 || memory.notes.length > 0;
+    memory.scans.length > 0 ||
+    memory.validations.length > 0 ||
+    memory.handoffs.length > 0 ||
+    memory.notes.length > 0 ||
+    memory.projectBrain.length > 0;
   if (!hasMemory) return [];
 
   const summary = summarizeProjectMemory(memory);

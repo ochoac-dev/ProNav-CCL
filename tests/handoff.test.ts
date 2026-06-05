@@ -164,6 +164,7 @@ describe("handoff builder", () => {
         ],
         handoffs: [],
         codexRuns: [],
+        projectBrain: [],
         notes: [
           {
             createdAt: "2026-05-29T22:04:00.000Z",
@@ -200,5 +201,127 @@ describe("handoff builder", () => {
     expect(handoff.markdown).toContain("Explanation depth: Developer");
     expect(handoff.markdown).toContain("Map / dictionary");
     expect(handoff.markdown).toContain("Event handler");
+  });
+
+  it("includes only relevant trusted Project Brain entries in handoff packets", async () => {
+    const scan = makeScan(await mkdtemp(join(tmpdir(), "pronav-handoff-brain-")));
+
+    const handoff = buildHandoff(scan, {
+      agent: "codex",
+      taskType: "fix-bug",
+      goal: "Fix source behavior.",
+      scope: "src",
+      memory: {
+        project: { slug: "friendly-app", name: "Friendly App", repoRoot: scan.profile.repoRoot },
+        scans: [],
+        validations: [],
+        handoffs: [],
+        codexRuns: [],
+        notes: [],
+        projectBrain: [
+          {
+            id: "brain-approved-src",
+            kind: "module-card",
+            status: "approved",
+            source: "user",
+            title: "Source owns app behavior",
+            body: "The src folder owns visible app behavior and should be validated with npm test.",
+            scope: "src",
+            paths: ["src/index.ts"],
+            conceptIds: [],
+            createdAt: "2026-05-29T22:00:00.000Z",
+            updatedAt: "2026-05-29T22:01:00.000Z",
+            approvedAt: "2026-05-29T22:01:00.000Z"
+          },
+          {
+            id: "brain-pinned-global",
+            kind: "decision",
+            status: "pinned",
+            source: "user",
+            title: "Local-first context",
+            body: "Keep Project Brain context local unless the user copies a handoff.",
+            scope: null,
+            paths: [],
+            conceptIds: [],
+            createdAt: "2026-05-29T22:00:00.000Z",
+            updatedAt: "2026-05-29T22:02:00.000Z",
+            approvedAt: "2026-05-29T22:02:00.000Z"
+          },
+          {
+            id: "brain-draft-src",
+            kind: "constraint-risk",
+            status: "draft",
+            source: "scan-draft",
+            title: "Unreviewed source risk",
+            body: "This draft should not reach the handoff.",
+            scope: "src",
+            paths: ["src/index.ts"],
+            conceptIds: [],
+            createdAt: "2026-05-29T22:00:00.000Z",
+            updatedAt: "2026-05-29T22:00:00.000Z",
+            approvedAt: null
+          },
+          {
+            id: "brain-deprecated-src",
+            kind: "open-question",
+            status: "deprecated",
+            source: "user",
+            title: "Old source question",
+            body: "This deprecated entry should not reach the handoff.",
+            scope: "src",
+            paths: ["src/index.ts"],
+            conceptIds: [],
+            createdAt: "2026-05-29T22:00:00.000Z",
+            updatedAt: "2026-05-29T22:03:00.000Z",
+            approvedAt: "2026-05-29T22:01:00.000Z"
+          }
+        ]
+      }
+    });
+
+    expect(handoff.markdown).toContain("## Human-Approved Project Brain");
+    expect(handoff.markdown).toContain("Source owns app behavior");
+    expect(handoff.markdown).toContain("Local-first context");
+    expect(handoff.markdown).not.toContain("Unreviewed source risk");
+    expect(handoff.markdown).not.toContain("Old source question");
+  });
+
+  it("respects Project Brain entries removed from a handoff review", async () => {
+    const scan = makeScan(await mkdtemp(join(tmpdir(), "pronav-handoff-brain-removed-")));
+
+    const handoff = buildHandoff(scan, {
+      agent: "codex",
+      taskType: "fix-bug",
+      goal: "Fix source behavior.",
+      scope: "src",
+      excludedBrainEntryIds: ["brain-approved-src"],
+      memory: {
+        project: { slug: "friendly-app", name: "Friendly App", repoRoot: scan.profile.repoRoot },
+        scans: [],
+        validations: [],
+        handoffs: [],
+        codexRuns: [],
+        notes: [],
+        projectBrain: [
+          {
+            id: "brain-approved-src",
+            kind: "module-card",
+            status: "approved",
+            source: "user",
+            title: "Source owns app behavior",
+            body: "The src folder owns visible app behavior and should be validated with npm test.",
+            scope: "src",
+            paths: ["src/index.ts"],
+            conceptIds: [],
+            createdAt: "2026-05-29T22:00:00.000Z",
+            updatedAt: "2026-05-29T22:01:00.000Z",
+            approvedAt: "2026-05-29T22:01:00.000Z"
+          }
+        ]
+      }
+    });
+
+    expect(handoff.markdown).not.toContain("## Human-Approved Project Brain");
+    expect(handoff.markdown).not.toContain("Source owns app behavior");
   });
 });

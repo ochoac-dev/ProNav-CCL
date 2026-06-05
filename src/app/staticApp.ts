@@ -27,6 +27,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '        <button class="nav-button" type="button" data-section="overview"><span class="nav-icon">◎</span><span class="label">Understand</span></button>',
     '        <button class="nav-button" type="button" data-section="features"><span class="nav-icon">⌕</span><span class="label">Browse</span></button>',
     '        <button class="nav-button" type="button" data-section="delegate"><span class="nav-icon">↗</span><span class="label">Delegate</span></button>',
+    '        <button class="nav-button" type="button" data-section="brain"><span class="nav-icon">□</span><span class="label">Project Brain</span></button>',
     '        <button class="nav-button" type="button" data-section="validation"><span class="nav-icon">✓</span><span class="label">Validate</span></button>',
     '        <button class="nav-button" type="button" data-section="history"><span class="nav-icon">◷</span><span class="label">History</span></button>',
     "      </nav>",
@@ -194,6 +195,7 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '                <label class="step"><small>Step 4</small><span>Describe the goal</span><textarea id="handoff-goal" rows="6" placeholder="Describe the task in normal language"></textarea></label>',
     '                <button id="handoff-button" class="primary" type="submit">Generate Handoff</button>',
     "              </form>",
+    '              <div id="handoff-brain-preview" class="learning-panel inline-learning"></div>',
     '              <div id="delegate-learning-explainer" class="learning-panel inline-learning"></div>',
     '              <div id="handoff-error" class="error-box" role="alert" hidden></div>',
     "            </section>",
@@ -212,6 +214,19 @@ export function renderAppHtml(profileName = "ProNav", data: ProNavAppData | null
     '                <div class="button-row"><button class="secondary" type="button" data-section-jump="validation">Open Validate</button><button class="secondary" type="button" data-section-jump="history">Open History</button></div>',
     "              </div>",
     "            </section>",
+    "          </div>",
+    "        </section>",
+    '        <section id="brain" class="view-section" aria-labelledby="brain-title">',
+    '          <div class="topbar">',
+    '            <div class="title-block">',
+    '              <h2 id="brain-title">Project Brain</h2>',
+    '              <p>Review draft context, approve trusted project knowledge, and decide what AI handoffs can use.</p>',
+    "            </div>",
+    '            <div id="project-brain-trust" class="repo-pill">Senior review required</div>',
+    "          </div>",
+    '          <div class="content-grid two-column">',
+    '            <section class="panel"><div class="card-header"><div><h3>Trusted Context</h3><p>Approved and pinned entries can be included in AI handoffs.</p></div><button class="secondary" type="button" id="refresh-brain-button">Refresh</button></div><div id="project-brain-summary" class="file-list packet"></div><div id="project-brain-list" class="file-list packet"></div></section>',
+    '            <section class="panel"><div class="card-header"><div><h3>Draft or Edit Context</h3><p>Builder and Developer users can draft. Senior mode unlocks approve, pin, edit, and deprecate controls.</p></div></div><form id="project-brain-form" class="handoff-form"><label><span>Entry type</span><select id="brain-kind"><option value="module-card">Module Card</option><option value="decision">Decision</option><option value="constraint-risk">Constraint / Risk</option><option value="open-question">Open Question</option></select></label><label><span>Scope</span><input id="brain-scope" type="text" placeholder="src, Assets/SEL, docs"></label><label><span>Title</span><input id="brain-title-input" type="text" placeholder="What should future AI remember?"></label><label><span>Body</span><textarea id="brain-body" rows="6" placeholder="Write or edit trusted context for this project."></textarea></label><input id="brain-entry-id" type="hidden"><div class="button-row"><button id="brain-draft-button" class="secondary" type="button">Draft Project Brain entry</button><button id="brain-save-button" class="primary" type="submit">Save Entry</button></div></form><div id="brain-error" class="error-box" role="alert" hidden></div></section>',
     "          </div>",
     "        </section>",
     '        <section id="backend" class="view-section" aria-labelledby="backend-title">',
@@ -1477,6 +1492,7 @@ let selectedDocumentPath = appData?.documents?.files?.[0]?.path ?? null;
 let lastHandoffPrompt = "";
 let lastHandoffPath = "";
 let projectMemory = null;
+let excludedBrainEntryIds = new Set();
 let learningDepth = normalizeLearningDepth(localStorage.getItem("pronav-learning-depth"));
 const themeToggle = document.getElementById("theme-toggle");
 const openFolderButton = document.getElementById("open-folder-button");
@@ -1527,6 +1543,8 @@ function setLearningDepth(value) {
   renderFeatureDetail();
   renderDocuments();
   renderValidation();
+  renderProjectBrain();
+  renderHandoffBrainPreview();
 }
 
 function nameFromPath(path) {
@@ -1604,6 +1622,8 @@ function renderDashboard(data) {
   renderSystemMap();
   renderValidation();
   renderLearningExplanations();
+  renderProjectBrain();
+  renderHandoffBrainPreview();
   loadProjectMemory();
   showSection("overview", false);
 }
@@ -1963,13 +1983,16 @@ function renderBrowseProject() {
     ? folders
         .map((folder, index) => {
           const explanation = appData.learning?.folderExplanations?.[folder.path]?.[learningDepth] ?? "Open this folder only after you understand what kind of work it owns.";
-          return '<article class="vibe-card browse-card"><div class="vibe-card-title"><h4>' + escapeHtml(folder.label || folder.path) + '</h4><span class="badge ' + vibeSafetyClass(folder.safety) + '">' + escapeHtml(vibeSafetyLabel(folder.safety)) + '</span></div><p>' + escapeHtml(folder.description) + '</p><p class="muted">' + escapeHtml(folder.reason || "") + '</p><details class="explain-card"><summary>What am I seeing?</summary><p>' + escapeHtml(explanation) + '</p></details><p class="muted">Next: ' + escapeHtml(folder.nextAction || "Use this as task context.") + '</p><div class="vibe-paths"><span class="path-chip">' + escapeHtml(folder.path) + '</span><span class="path-chip">' + escapeHtml(folder.category) + '</span><span class="path-chip">' + escapeHtml(folder.fileCount ?? 0) + ' files</span></div><button class="secondary" type="button" data-browse-folder-index="' + index + '">Use in Delegate</button></article>';
+          return '<article class="vibe-card browse-card"><div class="vibe-card-title"><h4>' + escapeHtml(folder.label || folder.path) + '</h4><span class="badge ' + vibeSafetyClass(folder.safety) + '">' + escapeHtml(vibeSafetyLabel(folder.safety)) + '</span></div><p>' + escapeHtml(folder.description) + '</p><p class="muted">' + escapeHtml(folder.reason || "") + '</p><details class="explain-card"><summary>What am I seeing?</summary><p>' + escapeHtml(explanation) + '</p></details><p class="muted">Next: ' + escapeHtml(folder.nextAction || "Use this as task context.") + '</p><div class="vibe-paths"><span class="path-chip">' + escapeHtml(folder.path) + '</span><span class="path-chip">' + escapeHtml(folder.category) + '</span><span class="path-chip">' + escapeHtml(folder.fileCount ?? 0) + ' files</span></div><div class="button-row"><button class="secondary" type="button" data-browse-folder-index="' + index + '">Use in Delegate</button><button class="secondary" type="button" data-brain-folder-index="' + index + '">Draft Project Brain entry</button></div></article>';
         })
         .join("")
     : '<div class="file-row">No folder cards are available for this scan yet.</div>';
 
   document.querySelectorAll("[data-browse-folder-index]").forEach((button) => {
     button.addEventListener("click", () => prefillDelegateFromBrowse(Number(button.dataset.browseFolderIndex)));
+  });
+  document.querySelectorAll("[data-brain-folder-index]").forEach((button) => {
+    button.addEventListener("click", () => draftBrainFromBrowse(Number(button.dataset.brainFolderIndex)));
   });
 }
 
@@ -1984,6 +2007,15 @@ function prefillDelegateFromBrowse(index) {
   document.getElementById("handoff-meta").textContent = "Prefilled from Browse Project: " + (folder.label || folder.path);
   showSection("delegate");
   document.getElementById("handoff-goal").focus();
+}
+
+function draftBrainFromBrowse(index) {
+  const folder = (appData.browse?.folders ?? appData.folders)[index];
+  if (!folder) return;
+  document.getElementById("brain-kind").value = "module-card";
+  document.getElementById("brain-scope").value = folder.path;
+  document.getElementById("brain-title-input").value = "Module card draft for " + (folder.label || folder.path);
+  submitBrainDraft();
 }
 
 function renderDocuments() {
@@ -2074,7 +2106,8 @@ async function submitHandoff(event) {
         taskType,
         goal,
         scope: scope || undefined,
-        explanationDepth: learningDepth
+        explanationDepth: learningDepth,
+        excludedBrainEntryIds: [...excludedBrainEntryIds]
       })
     });
     const body = await response.json();
@@ -2336,9 +2369,16 @@ async function loadProjectMemory() {
 function renderProjectMemory() {
   const timeline = document.getElementById("memory-timeline");
   if (!timeline) return;
-  const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], codexRuns: [], notes: [] };
+  const memory = projectMemory ?? { scans: [], validations: [], handoffs: [], codexRuns: [], projectBrain: [], notes: [] };
   renderMemorySummary(memory);
+  renderProjectBrain();
+  renderHandoffBrainPreview();
   const entries = [
+    ...(memory.projectBrain ?? []).map((entry) => ({
+      label: "Project Brain",
+      when: entry.updatedAt || entry.createdAt,
+      text: entry.status + " " + brainKindLabel(entry.kind) + " | " + entry.title
+    })),
     ...(memory.notes ?? []).map((note) => ({
       label: "Note",
       when: note.createdAt,
@@ -2369,6 +2409,121 @@ function renderProjectMemory() {
   timeline.innerHTML = entries.length
     ? entries.slice(0, 30).map((entry) => fileRow(entry.label + " · " + formatDateTime(entry.when) + " · " + entry.text)).join("")
     : fileRow("No memory yet. Scan, validate, generate a handoff, or add a note.");
+}
+
+function renderProjectBrain() {
+  const list = document.getElementById("project-brain-list");
+  if (!list) return;
+  const summaryBox = document.getElementById("project-brain-summary");
+  const trust = document.getElementById("project-brain-trust");
+  const memory = projectMemory ?? { projectBrain: [] };
+  const entries = [...(memory.projectBrain ?? [])].sort((a, b) => text(b.updatedAt || b.createdAt).localeCompare(text(a.updatedAt || a.createdAt)));
+  const counts = (memory.summary?.projectBrainCounts) ?? buildBrainCounts(entries);
+  const isSenior = learningDepth === "senior";
+
+  if (trust) trust.textContent = isSenior ? "Senior mode active" : "Senior mode unlocks approvals";
+  if (summaryBox) {
+    summaryBox.innerHTML = [
+      fileRow("Drafts: " + counts.draft + " | Approved: " + counts.approved + " | Pinned: " + counts.pinned + " | Deprecated: " + counts.deprecated),
+      fileRow(isSenior ? "Senior mode unlocks approve, pin, edit, and deprecate controls." : "Senior mode unlocks approve, pin, edit, and deprecate controls.")
+    ].join("");
+  }
+
+  list.innerHTML = entries.length
+    ? entries.map((entry) => renderBrainEntry(entry, isSenior)).join("")
+    : fileRow("No Project Brain entries yet. Draft context from Browse or create one here.");
+
+  list.querySelectorAll("[data-brain-edit]").forEach((button) => {
+    button.addEventListener("click", () => startBrainEdit(button.dataset.brainEdit));
+  });
+  list.querySelectorAll("[data-brain-action]").forEach((button) => {
+    button.addEventListener("click", () => updateBrainStatus(button.dataset.brainId, button.dataset.brainAction));
+  });
+}
+
+function renderBrainEntry(entry, isSenior) {
+  const meta = [
+    brainKindLabel(entry.kind),
+    entry.status,
+    entry.source,
+    entry.scope || "global"
+  ].filter(Boolean).join(" · ");
+  const controls = isSenior
+    ? '<div class="button-row brain-actions">' +
+        '<button class="secondary" type="button" data-brain-edit="' + escapeHtml(entry.id) + '">Edit</button>' +
+        brainStatusButtons(entry) +
+      "</div>"
+    : "";
+  const paths = (entry.paths ?? []).length ? '<div class="vibe-paths">' + vibePaths(entry.paths) + "</div>" : "";
+
+  return [
+    '<article class="file-row brain-entry">',
+    '<div><strong>' + escapeHtml(entry.title) + '</strong><p class="muted">' + escapeHtml(meta) + '</p><p>' + escapeHtml(entry.body) + '</p>' + paths + "</div>",
+    controls,
+    "</article>"
+  ].join("");
+}
+
+function brainStatusButtons(entry) {
+  if (entry.status === "deprecated") return "";
+  const buttons = [];
+  if (entry.status === "draft") {
+    buttons.push('<button class="secondary" type="button" data-brain-id="' + escapeHtml(entry.id) + '" data-brain-action="approve">Approve</button>');
+  }
+  if (entry.status === "approved") {
+    buttons.push('<button class="secondary" type="button" data-brain-id="' + escapeHtml(entry.id) + '" data-brain-action="pin">Pin</button>');
+  }
+  if (entry.status === "pinned") {
+    buttons.push('<button class="secondary" type="button" data-brain-id="' + escapeHtml(entry.id) + '" data-brain-action="unpin">Unpin</button>');
+  }
+  buttons.push('<button class="secondary" type="button" data-brain-id="' + escapeHtml(entry.id) + '" data-brain-action="deprecate">Deprecate</button>');
+  return buttons.join("");
+}
+
+function buildBrainCounts(entries) {
+  return entries.reduce((counts, entry) => {
+    if (counts[entry.status] !== undefined) counts[entry.status] += 1;
+    return counts;
+  }, { draft: 0, approved: 0, pinned: 0, deprecated: 0 });
+}
+
+function brainKindLabel(kind) {
+  if (kind === "decision") return "Decision";
+  if (kind === "constraint-risk") return "Constraint/Risk";
+  if (kind === "open-question") return "Open Question";
+  return "Module Card";
+}
+
+function startBrainEdit(entryId) {
+  if (learningDepth !== "senior") return;
+  const entry = (projectMemory?.projectBrain ?? []).find((item) => item.id === entryId);
+  if (!entry) return;
+  document.getElementById("brain-entry-id").value = entry.id;
+  document.getElementById("brain-kind").value = entry.kind;
+  document.getElementById("brain-scope").value = entry.scope || "";
+  document.getElementById("brain-title-input").value = entry.title;
+  document.getElementById("brain-body").value = entry.body;
+  showSection("brain");
+}
+
+async function updateBrainStatus(entryId, action) {
+  if (!entryId || !action || learningDepth !== "senior" || !appData?.project?.slug) return;
+  const errorBox = document.getElementById("brain-error");
+  errorBox.hidden = true;
+  try {
+    const response = await fetch("/api/brain/status", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ project: appData.project.slug, id: entryId, action })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Project Brain status update failed.");
+    projectMemory = body;
+    renderProjectMemory();
+  } catch (error) {
+    errorBox.hidden = false;
+    errorBox.textContent = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function renderMemorySummary(memory) {
@@ -2457,6 +2612,159 @@ function signedCount(value) {
   return numberValue > 0 ? "+" + numberValue : String(numberValue);
 }
 
+function trustedBrainEntriesForHandoff() {
+  const scope = document.getElementById("handoff-scope")?.value.trim() || "";
+  const relevantFiles = new Set(currentHandoffRelevantFiles(scope));
+  const relevantConcepts = new Set([...relevantFiles].flatMap((path) => appData?.learning?.fileExplanations?.[path]?.conceptIds ?? []));
+  return (projectMemory?.projectBrain ?? [])
+    .filter((entry) => (entry.status === "approved" || entry.status === "pinned") && !excludedBrainEntryIds.has(entry.id))
+    .filter((entry) => brainEntryMatchesScope(entry, scope, relevantFiles, relevantConcepts))
+    .sort((a, b) => brainStatusWeight(b.status) - brainStatusWeight(a.status) || text(b.updatedAt).localeCompare(text(a.updatedAt)))
+    .slice(0, 8);
+}
+
+function currentHandoffRelevantFiles(scope) {
+  const candidates = [
+    ...(appData?.features ?? []).flatMap((feature) => feature.files.map((file) => file.path)),
+    ...(appData?.generic?.sampleFiles ?? []),
+    ...(appData?.documents?.files ?? []).map((file) => file.path)
+  ];
+  const scoped = scope ? candidates.filter((path) => pathMatches(path, scope)) : candidates;
+  return [...new Set(scoped.length ? scoped : candidates)].slice(0, 30);
+}
+
+function brainEntryMatchesScope(entry, scope, relevantFiles, relevantConcepts) {
+  if (!entry.scope && !(entry.paths ?? []).length && !(entry.conceptIds ?? []).length) return true;
+  if (entry.scope && scope && pathMatches(entry.scope, scope)) return true;
+  if (entry.scope && [...relevantFiles].some((path) => pathMatches(path, entry.scope))) return true;
+  if ((entry.paths ?? []).some((path) => (scope && pathMatches(path, scope)) || relevantFiles.has(path))) return true;
+  if ((entry.conceptIds ?? []).some((id) => relevantConcepts.has(id))) return true;
+  return false;
+}
+
+function pathMatches(left, right) {
+  const a = text(left).toLowerCase();
+  const b = text(right).toLowerCase();
+  return a === b || a.startsWith(b + "/") || b.startsWith(a + "/") || a.includes(b) || b.includes(a);
+}
+
+function brainStatusWeight(status) {
+  return status === "pinned" ? 2 : status === "approved" ? 1 : 0;
+}
+
+function renderHandoffBrainPreview() {
+  const box = document.getElementById("handoff-brain-preview");
+  if (!box) return;
+  const entries = trustedBrainEntriesForHandoff();
+  if (!entries.length) {
+    box.innerHTML = "<h4>Project Brain context</h4><p>No approved Project Brain entries match this handoff yet.</p>";
+    return;
+  }
+  box.innerHTML = [
+    "<h4>Project Brain context</h4>",
+    "<p>Approved context below will be included in the handoff. Remove anything that does not apply.</p>",
+    ...entries.map((entry) =>
+      '<div class="learning-concept-row"><strong>' +
+      escapeHtml(entry.title) +
+      '</strong><p>' +
+      escapeHtml(entry.body) +
+      '</p><button class="secondary" type="button" data-remove-brain="' +
+      escapeHtml(entry.id) +
+      '">Remove</button></div>'
+    )
+  ].join("");
+  box.querySelectorAll("[data-remove-brain]").forEach((button) => {
+    button.addEventListener("click", () => {
+      excludedBrainEntryIds.add(button.dataset.removeBrain);
+      renderHandoffBrainPreview();
+    });
+  });
+}
+
+async function submitBrainDraft(event) {
+  if (event) event.preventDefault();
+  if (!appData?.project?.slug) return;
+  const errorBox = document.getElementById("brain-error");
+  const button = document.getElementById("brain-draft-button");
+  errorBox.hidden = true;
+  button.disabled = true;
+  button.textContent = "Drafting";
+
+  try {
+    const response = await fetch("/api/brain/draft", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: appData.project.slug,
+        kind: document.getElementById("brain-kind").value,
+        scope: document.getElementById("brain-scope").value.trim(),
+        title: document.getElementById("brain-title-input").value.trim()
+      })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Project Brain draft failed.");
+    projectMemory = body;
+    clearBrainForm();
+    renderProjectMemory();
+    showSection("brain");
+  } catch (error) {
+    errorBox.hidden = false;
+    errorBox.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Draft Project Brain entry";
+  }
+}
+
+async function submitBrainEntry(event) {
+  event.preventDefault();
+  if (!appData?.project?.slug) return;
+  const entryId = document.getElementById("brain-entry-id").value.trim();
+  const errorBox = document.getElementById("brain-error");
+  const button = document.getElementById("brain-save-button");
+  if (entryId && learningDepth !== "senior") {
+    errorBox.hidden = false;
+    errorBox.textContent = "Senior mode unlocks editing approved Project Brain entries.";
+    return;
+  }
+  errorBox.hidden = true;
+  button.disabled = true;
+  button.textContent = "Saving";
+
+  try {
+    const response = await fetch("/api/brain/entry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        project: appData.project.slug,
+        id: entryId || undefined,
+        kind: document.getElementById("brain-kind").value,
+        title: document.getElementById("brain-title-input").value.trim(),
+        body: document.getElementById("brain-body").value.trim(),
+        scope: document.getElementById("brain-scope").value.trim(),
+        source: "user"
+      })
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Project Brain save failed.");
+    projectMemory = body;
+    clearBrainForm();
+    renderProjectMemory();
+  } catch (error) {
+    errorBox.hidden = false;
+    errorBox.textContent = error instanceof Error ? error.message : String(error);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save Entry";
+  }
+}
+
+function clearBrainForm() {
+  document.getElementById("brain-entry-id").value = "";
+  document.getElementById("brain-title-input").value = "";
+  document.getElementById("brain-body").value = "";
+}
+
 async function submitMemoryNote(event) {
   event.preventDefault();
   if (!appData?.project?.slug) return;
@@ -2515,10 +2823,18 @@ function bindNavigation() {
   document.getElementById("feature-search").addEventListener("input", renderFeatureCards);
   document.getElementById("document-search").addEventListener("input", renderDocuments);
   document.getElementById("handoff-form").addEventListener("submit", submitHandoff);
+  document.getElementById("handoff-scope").addEventListener("input", () => {
+    excludedBrainEntryIds = new Set();
+    renderHandoffBrainPreview();
+  });
+  document.getElementById("handoff-task-type").addEventListener("change", renderHandoffBrainPreview);
   document.getElementById("run-codex-button").addEventListener("click", showCodexConfirmation);
   document.getElementById("start-codex-button").addEventListener("click", runCodexFromHandoff);
   document.getElementById("cancel-codex-button").addEventListener("click", hideCodexConfirmation);
   document.getElementById("copy-handoff-button").addEventListener("click", copyHandoffPrompt);
+  document.getElementById("project-brain-form").addEventListener("submit", submitBrainEntry);
+  document.getElementById("brain-draft-button").addEventListener("click", submitBrainDraft);
+  document.getElementById("refresh-brain-button").addEventListener("click", loadProjectMemory);
   document.getElementById("memory-note-form").addEventListener("submit", submitMemoryNote);
   document.getElementById("refresh-memory-button").addEventListener("click", loadProjectMemory);
 }
